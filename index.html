@@ -1,0 +1,693 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EduQuest | Interactive Learning Platform</title>
+    
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+
+    <!-- CSS Styles -->
+    <style>
+        :root {
+            --primary: #0077cc;
+            --primary-dark: #005fa3;
+            --secondary: #28a745;
+            --secondary-dark: #1e7e34;
+            --background: #f0f4f8;
+            --surface: #ffffff;
+            --text: #333333;
+            --text-light: #666666;
+            --border: #dde1e6;
+            --shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+            --radius: 12px;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Nunito', sans-serif; }
+        body { background-color: var(--background); color: var(--text); min-height: 100vh; display: flex; flex-direction: column; }
+
+        /* --- Components --- */
+        .container { max-width: 1200px; margin: 0 auto; padding: 20px; width: 100%; }
+        .btn { padding: 10px 20px; border: none; border-radius: 8px; cursor: pointer; font-weight: 700; transition: 0.2s; font-size: 1rem; }
+        .btn-primary { background-color: var(--primary); color: white; }
+        .btn-primary:hover { background-color: var(--primary-dark); }
+        .btn-secondary { background-color: var(--secondary); color: white; }
+        .btn-secondary:hover { background-color: var(--secondary-dark); }
+        .btn-outline { background: transparent; border: 2px solid var(--primary); color: var(--primary); }
+        .btn-outline:hover { background: #e6f0fa; }
+        .card { background: var(--surface); border-radius: var(--radius); padding: 20px; box-shadow: var(--shadow); border: 1px solid var(--border); }
+        .input { padding: 12px; border: 1px solid var(--border); border-radius: 8px; width: 100%; font-size: 1rem; margin-bottom: 10px; }
+        .spinner { border: 4px solid #f3f3f3; border-top: 4px solid var(--primary); border-radius: 50%; width: 30px; height: 30px; animation: spin 1s linear infinite; margin: 20px auto; display: none; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .hidden { display: none !important; }
+
+        /* --- Header --- */
+        header { background: var(--surface); box-shadow: var(--shadow); padding: 15px 0; position: sticky; top: 0; z-index: 100; }
+        .nav-wrapper { display: flex; justify-content: space-between; align-items: center; }
+        .logo { font-size: 1.5rem; font-weight: 800; color: var(--primary); cursor: pointer; display: flex; align-items: center; gap: 8px; }
+        .user-controls { display: flex; gap: 10px; align-items: center; }
+
+        /* --- Views --- */
+        .view-section { padding-top: 20px; animation: fadeIn 0.3s ease-in-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* 1. Landing View */
+        #view-landing { text-align: center; margin-top: 50px; }
+        .subject-cards { display: flex; justify-content: center; gap: 30px; margin-top: 40px; flex-wrap: wrap; }
+        .subject-card { width: 300px; height: 200px; display: flex; align-items: center; justify-content: center; font-size: 2rem; font-weight: 800; color: white; border-radius: 20px; cursor: pointer; transition: transform 0.2s, box-shadow 0.2s; }
+        .subject-math { background: linear-gradient(135deg, #0077cc, #00a3ff); }
+        .subject-science { background: linear-gradient(135deg, #28a745, #5ddc79); }
+        .subject-card:hover { transform: translateY(-5px); box-shadow: 0 10px 20px rgba(0,0,0,0.15); }
+
+        /* 2. Library View */
+        .filters-bar { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px; margin-bottom: 20px; }
+        .games-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 20px; }
+        .game-card { cursor: pointer; display: flex; flex-direction: column; justify-content: space-between; height: 100%; transition: 0.2s; }
+        .game-card:hover { border-color: var(--primary); }
+        .game-badges { display: flex; gap: 5px; margin-top: 10px; flex-wrap: wrap; }
+        .badge { font-size: 0.8rem; padding: 4px 8px; border-radius: 4px; background: #eee; color: #555; }
+        .score-badge { background: #e3fcef; color: #00703c; font-weight: bold; }
+
+        /* 3. Game Player */
+        #game-frame { width: 100%; height: 75vh; border: none; border-radius: var(--radius); background: white; box-shadow: var(--shadow); }
+        .game-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
+
+        /* 4. Teacher Dashboard */
+        .dashboard-grid { display: grid; grid-template-columns: 1fr 2fr; gap: 30px; }
+        .student-table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        .student-table th, .student-table td { text-align: left; padding: 12px; border-bottom: 1px solid #eee; }
+        .student-table th { color: var(--text-light); font-size: 0.9rem; }
+
+        /* 5. Login */
+        .login-box { max-width: 400px; margin: 50px auto; text-align: center; }
+        .divider { margin: 20px 0; color: #aaa; font-size: 0.9rem; }
+
+        /* 6. Admin */
+        #admin-form { display: grid; gap: 15px; max-width: 800px; margin: 0 auto; }
+        textarea { height: 200px; font-family: monospace; }
+        
+        /* Utils */
+        .toast { position: fixed; bottom: 20px; right: 20px; background: #333; color: white; padding: 12px 24px; border-radius: 8px; opacity: 0; pointer-events: none; transition: 0.3s; z-index: 1000; }
+        .toast.show { opacity: 1; transform: translateY(-10px); }
+        .auth-check { color: var(--secondary); font-size: 0.9rem; margin-right: 10px; }
+
+        @media (max-width: 768px) {
+            .dashboard-grid { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Header -->
+    <header>
+        <div class="container nav-wrapper">
+            <div class="logo" onclick="app.router.go('landing')">
+                <span>🎓 EduQuest</span>
+            </div>
+            <div class="user-controls" id="header-controls">
+                <!-- Injected via JS -->
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content Area -->
+    <main class="container">
+        
+        <!-- Loading Spinner -->
+        <div id="main-spinner" class="spinner"></div>
+
+        <!-- VIEW 1: Landing -->
+        <div id="view-landing" class="view-section hidden">
+            <h1>What do you want to learn today?</h1>
+            <p style="color: var(--text-light); margin-top: 10px;">Select a subject to begin your adventure.</p>
+            <div class="subject-cards">
+                <div class="subject-card subject-math" onclick="app.logic.selectSubject('math')">
+                    🧮 Math
+                </div>
+                <div class="subject-card subject-science" onclick="app.logic.selectSubject('science')">
+                    🧬 Science
+                </div>
+            </div>
+            <div style="margin-top: 60px;">
+                <p>Are you a teacher?</p>
+                <button class="btn btn-outline" style="margin-top: 10px;" onclick="app.router.go('teacher-login')">Teacher Dashboard</button>
+                <br>
+                <!-- Hidden Admin Entry Point -->
+                <button class="btn btn-outline" style="margin-top: 10px; font-size: 0.8rem; border:none; opacity: 0.7;" onclick="app.router.go('admin')">Add Content (Admin)</button>
+            </div>
+        </div>
+
+        <!-- VIEW 2: Library -->
+        <div id="view-library" class="view-section hidden">
+            <button class="btn btn-outline" onclick="app.router.go('landing')" style="margin-bottom: 20px;">← Back to Subjects</button>
+            <h2 id="library-title" style="margin-bottom: 20px;">Library</h2>
+            
+            <div class="card filters-bar">
+                <input type="text" id="filter-search" class="input" placeholder="Search title..." oninput="app.logic.renderLibrary()">
+                <select id="filter-grade" class="input" onchange="app.logic.renderLibrary()">
+                    <option value="">All Grades</option>
+                    <option value="K">Kindergarten</option>
+                    <option value="1">1st Grade</option>
+                    <option value="2">2nd Grade</option>
+                    <option value="3">3rd Grade</option>
+                    <option value="4">4th Grade</option>
+                    <option value="5">5th Grade</option>
+                    <option value="6">6th Grade</option>
+                </select>
+                <select id="filter-topic" class="input" onchange="app.logic.renderLibrary()">
+                    <option value="">All Topics</option>
+                    <!-- Populated dynamically -->
+                </select>
+            </div>
+
+            <div id="library-grid" class="games-grid">
+                <!-- Games injected here -->
+            </div>
+        </div>
+
+        <!-- VIEW 3: Game Player -->
+        <div id="view-game" class="view-section hidden">
+            <div class="game-header">
+                <button class="btn btn-outline" onclick="app.router.go('library')">← Back to Library</button>
+                <div>
+                    <span id="game-player-title" style="font-weight: bold; margin-right: 15px;">Game Title</span>
+                    <span id="game-current-score" class="badge score-badge">Score: 0</span>
+                </div>
+            </div>
+            <iframe id="game-frame" sandbox="allow-scripts allow-modals"></iframe>
+        </div>
+
+        <!-- VIEW 4: Teacher Dashboard -->
+        <div id="view-dashboard" class="view-section hidden">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h2>Teacher Dashboard</h2>
+                <button class="btn btn-outline" onclick="app.auth.logout()">Sign Out</button>
+            </div>
+            
+            <div class="dashboard-grid">
+                <!-- Left: Add Student -->
+                <div class="card">
+                    <h3>Add Student</h3>
+                    <p style="margin-bottom: 15px; color: var(--text-light); font-size: 0.9rem;">Enter a name to generate a login code.</p>
+                    <input type="text" id="new-student-name" class="input" placeholder="Student Name (e.g. Alice)">
+                    <button class="btn btn-primary" onclick="app.logic.createStudent()">Generate Code</button>
+                    <div id="new-student-result" style="margin-top: 15px; font-weight: bold; color: var(--primary);"></div>
+                </div>
+
+                <!-- Right: Class List -->
+                <div class="card">
+                    <h3>My Class</h3>
+                    <table class="student-table">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Login Code</th>
+                                <th>Avg Score</th>
+                            </tr>
+                        </thead>
+                        <tbody id="student-list-body">
+                            <!-- Rows injected here -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- VIEW 5: Login (Student & Teacher Entry) -->
+        <div id="view-teacher-login" class="view-section hidden">
+            <div class="card login-box">
+                <h2>Teacher Access</h2>
+                <p style="margin-bottom: 20px;">Manage your class and view progress.</p>
+                <button class="btn btn-primary" onclick="app.auth.loginTeacher()">
+                    <span style="margin-right: 10px;">G</span> Sign in with Google
+                </button>
+                <div class="divider">OR</div>
+                <button class="btn btn-outline" onclick="app.router.go('student-login')">I am a Student</button>
+            </div>
+        </div>
+
+        <div id="view-student-login" class="view-section hidden">
+            <div class="card login-box">
+                <h2>Student Login</h2>
+                <p style="margin-bottom: 20px;">Enter the code your teacher gave you.</p>
+                <input type="text" id="student-login-code" class="input" placeholder="e.g. alex-99">
+                <button class="btn btn-secondary" onclick="app.auth.loginStudent()">Start Learning</button>
+                <div class="divider">OR</div>
+                <button class="btn btn-outline" onclick="app.router.go('teacher-login')">I am a Teacher</button>
+            </div>
+        </div>
+
+        <!-- VIEW 6: Admin (Add Game) -->
+        <div id="view-admin" class="view-section hidden">
+            <h2>Add New Content</h2>
+            <div class="card" id="admin-form">
+                <input type="text" id="admin-title" class="input" placeholder="Game Title">
+                <select id="admin-subject" class="input">
+                    <option value="math">Math</option>
+                    <option value="science">Science</option>
+                </select>
+                <select id="admin-grade" class="input">
+                    <option value="K">K</option>
+                    <option value="1">1</option>
+                    <option value="2">2</option>
+                    <option value="3">3</option>
+                    <option value="4">4</option>
+                    <option value="5">5</option>
+                    <option value="6">6</option>
+                </select>
+                <input type="text" id="admin-topic" class="input" placeholder="Topic (e.g. Algebra, Plants)">
+                <p style="font-size: 0.8rem; color: #666;">Paste HTML/JS below. To report score, use: <code>window.parent.postMessage({type: 'SCORE_UPDATE', score: 100}, '*')</code></p>
+                <textarea id="admin-html" class="input" placeholder="<h1>Hello World</h1>"></textarea>
+                <button class="btn btn-primary" onclick="app.logic.addGame()">Save to Database</button>
+                
+                <!-- Helper: Pre-fill a sample game for testing -->
+                <button class="btn btn-outline" style="margin-top:10px; font-size: 0.8rem;" onclick="app.logic.fillSampleGame()">Prefill Sample Math Game</button>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="toast">Action Successful</div>
+
+    <!-- Firebase SDKs -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js";
+        import { getFirestore, collection, addDoc, getDocs, query, where, doc, updateDoc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore.js";
+        import { getAuth, signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-auth.js";
+
+        // ==========================================
+        // CONFIGURATION (Injected)
+        // ==========================================
+        const firebaseConfig = {
+            apiKey: "AIzaSyCYVPsTnfNnyYfmgyKqeTtIAg5qf-ganS4",
+            authDomain: "visualizationpractice.firebaseapp.com",
+            projectId: "visualizationpractice",
+            storageBucket: "visualizationpractice.firebasestorage.app",
+            messagingSenderId: "814840211812",
+            appId: "1:814840211812:web:01543de18dc9cb3ce23271"
+        };
+
+        // ==========================================
+        // APP LOGIC
+        // ==========================================
+        
+        let db, auth;
+        
+        // State
+        const state = {
+            userType: null, // 'teacher' | 'student' | null
+            currentUser: null, // Auth Object or Student Doc Data
+            studentId: null, // Firestore Doc ID for student
+            selectedSubject: null,
+            games: [], // Cache for games
+            currentGameId: null
+        };
+
+        // --- Router ---
+        const router = {
+            go: (viewId) => {
+                document.querySelectorAll('.view-section').forEach(el => el.classList.add('hidden'));
+                document.getElementById(`view-${viewId}`).classList.remove('hidden');
+                
+                // Header update
+                updateHeader();
+                window.scrollTo(0,0);
+            }
+        };
+
+        // --- Helper: UI ---
+        const ui = {
+            spinner: (show) => document.getElementById('main-spinner').style.display = show ? 'block' : 'none',
+            toast: (msg) => {
+                const t = document.getElementById('toast');
+                t.textContent = msg;
+                t.classList.add('show');
+                setTimeout(() => t.classList.remove('show'), 3000);
+            }
+        };
+
+        // --- Auth Service ---
+        const authService = {
+            loginTeacher: async () => {
+                const provider = new GoogleAuthProvider();
+                try {
+                    await signInWithPopup(auth, provider);
+                    // onAuthStateChanged will handle redirection
+                } catch (error) {
+                    alert("Login failed: " + error.message);
+                }
+            },
+            
+            loginStudent: async () => {
+                const code = document.getElementById('student-login-code').value.trim();
+                if(!code) return alert("Please enter a code");
+                
+                ui.spinner(true);
+                try {
+                    const q = query(collection(db, "students"), where("loginCode", "==", code));
+                    const snapshot = await getDocs(q);
+                    
+                    if (snapshot.empty) {
+                        alert("Invalid Login Code");
+                    } else {
+                        const docData = snapshot.docs[0];
+                        state.userType = 'student';
+                        state.currentUser = docData.data();
+                        state.studentId = docData.id;
+                        
+                        // Persist session
+                        localStorage.setItem('edu_student_id', docData.id);
+                        
+                        router.go('landing');
+                    }
+                } catch (e) {
+                    console.error(e);
+                    alert("Error logging in");
+                }
+                ui.spinner(false);
+            },
+
+            logout: async () => {
+                if (state.userType === 'teacher') {
+                    await signOut(auth);
+                } else {
+                    state.userType = null;
+                    state.currentUser = null;
+                    state.studentId = null;
+                    localStorage.removeItem('edu_student_id');
+                    updateHeader();
+                    router.go('landing');
+                }
+            },
+
+            checkSession: async () => {
+                // Check Teacher
+                onAuthStateChanged(auth, (user) => {
+                    if (user) {
+                        state.userType = 'teacher';
+                        state.currentUser = user;
+                        // If on login page, go to dashboard
+                        if(!document.getElementById('view-teacher-login').classList.contains('hidden')) {
+                            router.go('dashboard');
+                            logic.loadTeacherDashboard();
+                        }
+                    } else if (state.userType === 'teacher') {
+                        // Just logged out
+                        state.userType = null;
+                        state.currentUser = null;
+                        router.go('landing');
+                    }
+                    updateHeader();
+                });
+
+                // Check Student LocalStorage
+                const savedId = localStorage.getItem('edu_student_id');
+                if (savedId && !state.userType) {
+                    try {
+                        const studentRef = doc(db, "students", savedId);
+                        // Using onSnapshot to keep scores updated in real-time
+                        onSnapshot(studentRef, (doc) => {
+                            if (doc.exists()) {
+                                state.userType = 'student';
+                                state.currentUser = doc.data();
+                                state.studentId = doc.id;
+                                updateHeader();
+                            }
+                        });
+                    } catch (e) { console.log("Session restore failed", e); }
+                }
+            }
+        };
+
+        // --- Business Logic ---
+        const logic = {
+            selectSubject: async (subject) => {
+                state.selectedSubject = subject;
+                document.getElementById('library-title').textContent = subject === 'math' ? 'Math Library' : 'Science Library';
+                
+                ui.spinner(true);
+                // Fetch games logic
+                try {
+                    // Fetch all games for subject (filter others in memory to avoid compound index issues)
+                    const q = query(collection(db, "games"), where("subject", "==", subject));
+                    const snapshot = await getDocs(q);
+                    state.games = snapshot.docs.map(d => d.data());
+                    
+                    // Populate Topic Dropdown dynamically
+                    const topics = [...new Set(state.games.map(g => g.topic))];
+                    const topicSelect = document.getElementById('filter-topic');
+                    topicSelect.innerHTML = '<option value="">All Topics</option>';
+                    topics.forEach(t => {
+                        topicSelect.innerHTML += `<option value="${t}">${t}</option>`;
+                    });
+
+                    logic.renderLibrary();
+                    router.go('library');
+                } catch (e) {
+                    console.error(e);
+                    alert("Failed to load games. Ensure Firestore rules allow access.");
+                }
+                ui.spinner(false);
+            },
+
+            renderLibrary: () => {
+                const grid = document.getElementById('library-grid');
+                grid.innerHTML = '';
+                
+                const search = document.getElementById('filter-search').value.toLowerCase();
+                const grade = document.getElementById('filter-grade').value;
+                const topic = document.getElementById('filter-topic').value;
+
+                const filtered = state.games.filter(g => {
+                    const matchSearch = g.title.toLowerCase().includes(search) || g.topic.toLowerCase().includes(search);
+                    const matchGrade = grade ? g.grade === grade : true;
+                    const matchTopic = topic ? g.topic === topic : true;
+                    return matchSearch && matchGrade && matchTopic;
+                });
+
+                if (filtered.length === 0) {
+                    grid.innerHTML = '<p>No games found. Try the Admin button on the home screen to add one!</p>';
+                    return;
+                }
+
+                filtered.forEach(game => {
+                    // Check if student has a score
+                    let scoreBadge = '';
+                    if (state.userType === 'student' && state.currentUser.scores && state.currentUser.scores[game.gameId]) {
+                        scoreBadge = `<span class="score-badge">High Score: ${state.currentUser.scores[game.gameId]}</span>`;
+                    }
+
+                    const card = document.createElement('div');
+                    card.className = 'card game-card';
+                    card.innerHTML = `
+                        <div>
+                            <h3>${game.title}</h3>
+                            <div class="game-badges">
+                                <span class="badge">Grade ${game.grade}</span>
+                                <span class="badge">${game.topic}</span>
+                            </div>
+                        </div>
+                        <div style="margin-top:15px; display:flex; justify-content:space-between; align-items:center;">
+                            ${scoreBadge}
+                            <button class="btn btn-primary" style="font-size:0.8rem; margin-left: auto;">Play ▶</button>
+                        </div>
+                    `;
+                    card.onclick = () => logic.launchGame(game);
+                    grid.appendChild(card);
+                });
+            },
+
+            launchGame: (game) => {
+                state.currentGameId = game.gameId;
+                document.getElementById('game-player-title').textContent = game.title;
+                const iframe = document.getElementById('game-frame');
+                
+                // Inject the game HTML. We wrap it to ensure styles don't bleed and add helper script.
+                const wrappedHtml = `
+                    <!DOCTYPE html>
+                    <html>
+                    <head><style>body{margin:0;padding:20px;font-family:sans-serif; text-align:center;}</style></head>
+                    <body>
+                        ${game.htmlCode}
+                    </body>
+                    </html>
+                `;
+                iframe.srcdoc = wrappedHtml;
+                
+                // Show current score if exists
+                const scoreDisplay = document.getElementById('game-current-score');
+                const currentScore = (state.currentUser?.scores?.[game.gameId]) || 0;
+                scoreDisplay.textContent = `Score: ${currentScore}`;
+
+                router.go('game');
+            },
+
+            handleScoreUpdate: async (score) => {
+                if (state.userType !== 'student') return; // Only save for students
+                
+                // Check if this is a high score
+                const oldScore = state.currentUser.scores?.[state.currentGameId] || 0;
+                
+                if (score > oldScore) {
+                    // Update in Firestore
+                    const studentRef = doc(db, "students", state.studentId);
+                    await updateDoc(studentRef, {
+                        [`scores.${state.currentGameId}`]: score
+                    });
+                    ui.toast(`New High Score: ${score}!`);
+                    document.getElementById('game-current-score').textContent = `Score: ${score}`;
+                }
+            },
+
+            createStudent: async () => {
+                if (state.userType !== 'teacher') return;
+                const name = document.getElementById('new-student-name').value.trim();
+                if(!name) return;
+
+                const code = name.toLowerCase().replace(/\s/g, '-') + '-' + Math.floor(Math.random() * 1000);
+                
+                try {
+                    await addDoc(collection(db, "students"), {
+                        name: name,
+                        loginCode: code,
+                        teacherId: state.currentUser.uid,
+                        scores: {}
+                    });
+                    
+                    document.getElementById('new-student-name').value = '';
+                    document.getElementById('new-student-result').textContent = `Created! Code: ${code}`;
+                    logic.loadTeacherDashboard(); // Refresh list
+                } catch (e) {
+                    console.error(e);
+                    alert("Error creating student. Check Firestore permissions.");
+                }
+            },
+
+            loadTeacherDashboard: async () => {
+                if (!state.currentUser) return;
+                
+                const q = query(collection(db, "students"), where("teacherId", "==", state.currentUser.uid));
+                const snapshot = await getDocs(q);
+                
+                const tbody = document.getElementById('student-list-body');
+                tbody.innerHTML = '';
+                
+                snapshot.forEach(doc => {
+                    const s = doc.data();
+                    const scores = Object.values(s.scores || {});
+                    const avg = scores.length ? Math.round(scores.reduce((a,b)=>a+b,0) / scores.length) : '-';
+                    
+                    tbody.innerHTML += `
+                        <tr>
+                            <td>${s.name}</td>
+                            <td><code>${s.loginCode}</code></td>
+                            <td>${avg}</td>
+                        </tr>
+                    `;
+                });
+            },
+
+            addGame: async () => {
+                const title = document.getElementById('admin-title').value;
+                const subject = document.getElementById('admin-subject').value;
+                const topic = document.getElementById('admin-topic').value;
+                const grade = document.getElementById('admin-grade').value;
+                const html = document.getElementById('admin-html').value;
+
+                if(!title || !html) return alert("Fill all fields");
+
+                const gameId = 'game_' + Date.now();
+                
+                try {
+                    await setDoc(doc(db, "games", gameId), {
+                        gameId, title, subject, topic, grade, htmlCode: html, createdAt: new Date()
+                    });
+                    ui.toast("Game Created!");
+                    document.getElementById('admin-title').value = '';
+                    document.getElementById('admin-html').value = '';
+                } catch(e) {
+                    alert("Error saving game: " + e.message);
+                }
+            },
+
+            fillSampleGame: () => {
+                document.getElementById('admin-title').value = "Math Speed Quiz";
+                document.getElementById('admin-subject').value = "math";
+                document.getElementById('admin-grade').value = "3";
+                document.getElementById('admin-topic').value = "Multiplication";
+                document.getElementById('admin-html').value = `
+<h3>Solve: 5 x 4 = ?</h3>
+<input id="ans" type="number" placeholder="Answer">
+<button onclick="check()">Submit</button>
+<p id="result"></p>
+<script>
+    function check() {
+        const val = document.getElementById('ans').value;
+        if(val == 20) {
+            document.getElementById('result').innerText = 'Correct! +10 Points';
+            document.getElementById('result').style.color = 'green';
+            // Send score to parent app
+            window.parent.postMessage({type: 'SCORE_UPDATE', score: 10}, '*');
+        } else {
+            document.getElementById('result').innerText = 'Wrong, try again.';
+            document.getElementById('result').style.color = 'red';
+        }
+    }
+<\/script>
+                `.trim();
+            }
+        };
+
+        function updateHeader() {
+            const container = document.getElementById('header-controls');
+            if (state.userType === 'student') {
+                container.innerHTML = `
+                    <span class="auth-check">Hi, ${state.currentUser.name}</span>
+                    <button class="btn btn-outline" style="padding: 5px 10px; font-size: 0.8rem;" onclick="app.auth.logout()">Exit</button>
+                `;
+            } else if (state.userType === 'teacher') {
+                container.innerHTML = `
+                    <span class="auth-check">Teacher Mode</span>
+                    <button class="btn btn-primary" onclick="app.router.go('dashboard')">Dashboard</button>
+                `;
+            } else {
+                container.innerHTML = `<button class="btn btn-primary" onclick="app.router.go('student-login')">Log In</button>`;
+            }
+        }
+
+        // --- Event Listeners ---
+        window.addEventListener('message', (event) => {
+            if (event.data && event.data.type === 'SCORE_UPDATE') {
+                logic.handleScoreUpdate(event.data.score);
+            }
+        });
+
+        // --- Initialization ---
+        async function init() {
+            try {
+                const appInstance = initializeApp(firebaseConfig);
+                db = getFirestore(appInstance);
+                auth = getAuth(appInstance);
+                
+                // Expose to window for HTML onclick handlers
+                window.app = { router, logic, auth: authService };
+                
+                await authService.checkSession();
+                
+                // If we are at root, ensure landing is shown
+                const active = document.querySelector('.view-section:not(.hidden)');
+                if(!active) router.go('landing');
+
+            } catch (e) {
+                console.error("Initialization Error", e);
+                alert("Failed to connect to Firebase. Check console.");
+            }
+        }
+
+        init();
+
+    </script>
+</body>
+</html>
