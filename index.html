@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>EduQuest | Interactive Learning</title>
+    <title>EduQuest | Secure Admin</title>
     
     <!-- Google Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
@@ -113,7 +113,7 @@
     <main class="container">
         <div id="main-spinner" class="spinner"></div>
 
-        <!-- VIEW: Landing (NO 'hidden' class here, so it's visible by default) -->
+        <!-- VIEW: Landing -->
         <div id="view-landing" class="view-section">
             <h1>Welcome to EduQuest</h1>
             <p style="color: var(--text-light);">Select a subject to start.</p>
@@ -338,6 +338,15 @@
 
         const router = {
             go: (viewId) => {
+                // SECURITY CHECK FOR ADMIN
+                if(viewId === 'admin') {
+                    const pass = prompt("Enter Admin Password:");
+                    if(pass !== "1030") {
+                        alert("Access Denied");
+                        return; // Stop navigation
+                    }
+                }
+
                 document.querySelectorAll('.view-section').forEach(el => el.classList.add('hidden'));
                 document.getElementById(`view-${viewId}`).classList.remove('hidden');
                 updateHeader();
