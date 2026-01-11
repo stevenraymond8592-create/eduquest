@@ -182,6 +182,10 @@
                     </div>
                     <div class="card">
                         <h3>Active Roster</h3>
+                        <div style="margin: 10px 0; display: flex; gap: 10px;">
+    <button class="btn btn-danger btn-sm" onclick="app.dashboard.bulkToggleLock(true)">🔒 Lock All Games</button>
+    <button class="btn btn-outline btn-sm" onclick="app.dashboard.bulkToggleLock(false)">🔓 Unlock All Games</button>
+</div>
                         <table style="width:100%;"><tbody id="student-list-body"></tbody></table>
                     </div>
                 </div>
@@ -567,6 +571,26 @@
                 await updateDoc(doc(db, "students", id), { gamesLocked: !curr });
                 dashboard.loadRoster();
             },
+            bulkToggleLock: async (lockStatus) => {
+    if(!confirm(`Are you sure you want to ${lockStatus ? 'LOCK' : 'UNLOCK'} game access for the ENTIRE class?`)) return;
+    ui.spinner(true);
+    try {
+        const batch = writeBatch(db);
+        const snap = await getDocs(query(collection(db, "students"), where("teacherId", "==", state.currentUser.uid)));
+        
+        snap.forEach((studentDoc) => {
+            batch.update(doc(db, "students", studentDoc.id), { gamesLocked: lockStatus });
+        });
+
+        await batch.commit();
+        ui.toast(`Classroom ${lockStatus ? 'Locked' : 'Unlocked'}!`);
+        app.dashboard.loadRoster(); // Refresh the list to show the new icons
+    } catch (error) {
+        console.error("Bulk lock failed:", error);
+        alert("Action failed. Check console.");
+    }
+    ui.spinner(false);
+},
             deleteStudent: async (id) => {
                 if(confirm("Delete this student permanently?")) {
                     await deleteDoc(doc(db, "students", id));
@@ -694,9 +718,14 @@
             logout: async () => { if(state.userType === 'teacher') await signOut(auth); state.userType = null; state.currentUser = null; localStorage.removeItem('edu_student_id'); router.go('landing'); },
             check: () => {
                 onAuthStateChanged(auth, (user) => {
-                    if(user) { state.userType = 'teacher'; state.currentUser = user; document.getElementById('admin-entry').classList.toggle('hidden', user.email.toLowerCase() !== ADMIN_EMAIL.toLowerCase()); }
-                    updateHeader();
-                });
+    if(user) { 
+        state.userType = 'teacher'; 
+        state.currentUser = user; 
+        // This line now shows the button for ANY logged-in teacher
+        document.getElementById('admin-entry').classList.remove('hidden'); 
+    }
+    updateHeader();
+});
                 const sid = localStorage.getItem('edu_student_id');
                 if(sid) onSnapshot(doc(db, "students", sid), (d) => { if(d.exists()){ state.userType = 'student'; state.currentUser = d.data(); state.studentId = d.id; updateHeader(); } });
             }
