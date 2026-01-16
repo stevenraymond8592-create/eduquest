@@ -66,6 +66,39 @@
         iframe { width: 100%; height: 75vh; border: none; border-radius: 16px; background: white; }
         .toast { position: fixed; bottom: 30px; right: 30px; background: #1e293b; color: white; padding: 15px 30px; border-radius: 12px; opacity: 0; pointer-events: none; transition: 0.4s; z-index: 9999; }
         .toast.show { opacity: 1; transform: translateY(-10px); }
+        
+        /* --- PROMPT FORGE WIZARD STYLES --- */
+.wizard-container { padding: 20px; }
+.wizard-step { display: none; animation: fadeIn 0.4s; }
+.wizard-step.active { display: block; }
+
+.category-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-top: 20px; }
+.category-card { 
+    background: #fff; border: 2px solid #e2e8f0; border-radius: 16px; padding: 20px; 
+    cursor: pointer; transition: 0.3s; text-align: center;
+}
+.category-card:hover { border-color: var(--primary); transform: translateY(-5px); box-shadow: var(--shadow); }
+.category-card h4 { color: var(--primary); margin-bottom: 10px; }
+.category-card p { font-size: 0.85rem; color: var(--text-light); }
+
+.image-preview-box {
+    border: 1px solid #cbd5e1; border-radius: 12px; overflow: hidden;
+    background: #f8fafc; margin: 15px 0; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+}
+.preview-header { background: #e2e8f0; padding: 8px 15px; display: flex; align-items: center; gap: 6px; }
+.dot { width: 10px; height: 10px; border-radius: 50%; }
+.red { background: #ff5f56; } .yellow { background: #ffbd2e; } .green { background: #27c93f; }
+.preview-url { margin-left: 10px; font-size: 0.7rem; color: #64748b; font-family: monospace; }
+.preview-img { width: 100%; display: block; border-bottom: 1px solid #e2e8f0; min-height: 100px; background: #eee; object-fit: cover;}
+.preview-caption { padding: 10px; font-size: 0.8rem; color: #475569; text-align: center; font-style: italic; }
+
+.prompt-output { 
+    background: #1e293b; color: #e2e8f0; padding: 20px; border-radius: 12px; 
+    font-family: monospace; font-size: 0.9rem; white-space: pre-wrap; margin: 15px 0;
+    max-height: 300px; overflow-y: auto; border: 1px solid #334155;
+}
+
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
     </style>
 </head>
 <body>
@@ -152,12 +185,27 @@
                 <div class="v-tab" id="d-tab-assign" onclick="app.dashboard.switchTab('assign')">Assignments</div>
                 <div class="v-tab" id="d-tab-shop" onclick="app.dashboard.switchTab('shop')">Shop Manager</div>
                 <div class="v-tab" id="d-tab-grades" onclick="app.dashboard.switchTab('grades')">Gradebook</div>
+                <div class="v-tab" id="d-tab-forge" onclick="app.dashboard.switchTab('forge')">Prompt Forge 🛠️</div>
             </div>
 
             <!-- DASH: MONITOR -->
             <div id="dash-monitor" class="dashboard-section">
                 <div class="card">
                     <h3>Student Live Pulse</h3>
+                    <div style="margin: 10px 0; display: flex; gap: 10px; align-items: center; background: #f0fdf4; padding: 10px; border-radius: 8px; border: 1px solid #dcfce7;">
+    <label style="font-size: 0.8rem; font-weight: 800; color: #166534;">Monitor Grade:</label>
+    <select id="monitor-filter-grade" class="input" style="width: auto; margin: 0; padding: 5px 10px;" onchange="app.dashboard.loadMonitor()">
+        <option value="">All Grades</option>
+        <option value="K">Grade K</option>
+        <option value="1">Grade 1</option>
+        <option value="2">Grade 2</option>
+        <option value="3">Grade 3</option>
+        <option value="4">Grade 4</option>
+        <option value="5">Grade 5</option>
+        <option value="6">Grade 6</option>
+    </select>
+    <span style="font-size: 0.7rem; color: #166534; font-style: italic;">(Filters the live view below)</span>
+</div>
                     <div style="overflow-x:auto;">
                         <table style="width:100%;">
                             <thead><tr><th>Student</th><th>Current Lesson/Topic</th><th>Recent Score</th><th>Rewards/Behavior</th></tr></thead>
@@ -182,6 +230,19 @@
                     </div>
                     <div class="card">
                         <h3>Active Roster</h3>
+                        <div style="margin: 10px 0; display: flex; gap: 10px; align-items: center; background: #f8fafc; padding: 10px; border-radius: 8px;">
+    <label style="font-size: 0.8rem; font-weight: 800;">Filter by Grade:</label>
+    <select id="roster-filter-grade" class="input" style="width: auto; margin: 0; padding: 5px 10px;" onchange="app.dashboard.loadRoster()">
+        <option value="">All Students</option>
+        <option value="K">Grade K</option>
+        <option value="1">Grade 1</option>
+        <option value="2">Grade 2</option>
+        <option value="3">Grade 3</option>
+        <option value="4">Grade 4</option>
+        <option value="5">Grade 5</option>
+        <option value="6">Grade 6</option>
+    </select>
+</div>
                         <div style="margin: 10px 0; display: flex; gap: 10px;">
     <button class="btn btn-danger btn-sm" onclick="app.dashboard.bulkToggleLock(true)">🔒 Lock All Games</button>
     <button class="btn btn-outline btn-sm" onclick="app.dashboard.bulkToggleLock(false)">🔓 Unlock All Games</button>
@@ -248,11 +309,98 @@
                         <select id="gb-filter-grade" class="input" onchange="app.dashboard.renderGrades()"><option value="">All Grades</option><option value="K">K</option><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option></select>
                         <select id="gb-filter-subject" class="input dynamic-subject-select" onchange="app.dashboard.renderGrades()"></select>
                         <select id="gb-filter-game" class="input" onchange="app.dashboard.renderGrades()"><option value="">All Lessons</option></select>
+                        <button class="btn btn-danger btn-sm" onclick="app.dashboard.resetTopicScores()" style="white-space: nowrap;">🧹 Reset Topic Scores</button>
                     </div>
                     <div style="overflow-x:auto;"><table style="width:100%;"><thead><tr><th>Student</th><th>Lesson</th><th>Best Score</th><th>Accuracy</th><th>Last Attempt</th></tr></thead><tbody id="grade-body"></tbody></table></div>
                 </div>
             </div>
         </div>
+        
+        <!-- DASH: PROMPT FORGE WIZARD -->
+<div id="dash-forge" class="dashboard-section hidden">
+    <div class="card wizard-container">
+        
+        <!-- STAGE 1: CHOOSE CATEGORY -->
+        <div id="forge-step-1" class="wizard-step active">
+            <h2 style="text-align:center;">What are you building today?</h2>
+            <p style="text-align:center; color:var(--text-light);">Select the type of logic for your lesson.</p>
+            <div class="category-grid">
+                <div class="category-card" onclick="app.forge.selectCategory('smart')">
+                    <h4>🎯 Smart Score</h4>
+                    <p>Random questions. Score goes up for right answers, down for wrong. Best for skill mastery.</p>
+                </div>
+                <div class="category-card" onclick="app.forge.selectCategory('assessment')">
+                    <h4>📝 Assessment</h4>
+                    <p>Formal Test style. Stimulus on the left, questions on the right. Records a final grade.</p>
+                </div>
+                <div class="category-card" onclick="app.forge.selectCategory('multi')">
+                    <h4>📅 Multi-Activity</h4>
+                    <p>Scaffolded learning. 5 different activities (Day 1-5). Best for a full unit.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- STAGE 2: BUILDER & INPUTS -->
+        <div id="forge-step-2" class="wizard-step">
+            <button class="btn btn-outline btn-sm" onclick="app.forge.goToStep(1)">← Back</button>
+            <h3 style="margin-top:15px;">Lesson Details</h3>
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:20px; margin-top:15px;">
+                <div>
+                    <label style="font-size:0.8rem; font-weight:800;">1. Choose Builder</label>
+                    <select id="forge-builder-select" class="input" onchange="app.forge.renderInputs()"></select>
+                    <div id="forge-inputs-area"></div>
+                    <label style="display:flex; align-items:center; gap:10px; margin-top:15px; cursor:pointer;">
+                        <input type="checkbox" id="forge-check-readaloud"> <span>Include <b>Read Aloud</b> (Voice)</span>
+                    </label>
+                </div>
+                <div style="background:#f8fafc; padding:20px; border-radius:12px; border:1px dashed #cbd5e1;">
+                    <h4>How it works:</h4>
+                    <p style="font-size:0.85rem; color:var(--text-light);">Fill in these details. We will use them to write a "Senior Developer" prompt for the AI to follow.</p>
+                    <button class="btn btn-primary" style="width:100%; margin-top:20px;" onclick="app.forge.generateAndGo()">Continue to Instructions →</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- STAGE 3: THE WIZARD INSTRUCTIONS -->
+        <div id="forge-step-3" class="wizard-step">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+                <h3>Step-by-Step Integration</h3>
+                <button class="btn btn-outline btn-sm" onclick="app.forge.goToStep(1)">Start Over</button>
+            </div>
+            
+            <div style="margin-top:20px;">
+                <h4>Step 1: Set up Gemini</h4>
+                <p>Open Gemini (Google), click <b>Gemini Advanced</b> (or Pro), and ensure Canva/Tools are ready.</p>
+                <div class="image-preview-box">
+                    <div class="preview-header"><span class="dot red"></span><span class="dot yellow"></span><span class="dot green"></span><span class="preview-url">Gemini Setup</span></div>
+                    <img src="https://via.placeholder.com/800x200?text=Insert+Gemini+Screenshot+Link+Here" class="preview-img">
+                    <p class="preview-caption">Locate the settings icon or the "Advanced" toggle.</p>
+                </div>
+
+                <hr style="margin:25px 0; opacity:0.2;">
+
+                <h4>Step 2: Copy the Master Prompt</h4>
+                <p>Copy this huge block of instructions and paste it into Gemini/Claude.</p>
+                <div id="master-prompt-box" class="prompt-output"></div>
+                <button class="btn btn-primary" onclick="app.forge.copy('master-prompt-box')">📋 Copy Master Prompt</button>
+
+                <hr style="margin:25px 0; opacity:0.2;">
+
+                <h4>Step 3: The Technical Patch (CRITICAL)</h4>
+                <p>Once the AI gives you code, if it doesn't save correctly, paste this "Checker" into the bottom of the AI chat.</p>
+                <div id="checker-prompt-box" class="prompt-output"></div>
+                <button class="btn btn-outline" onclick="app.forge.copy('checker-prompt-box')">📋 Copy Technical Checker</button>
+
+                <hr style="margin:25px 0; opacity:0.2;">
+
+                <h4>Step 4: Deploy to EduQuest</h4>
+                <p>Once satisfied, copy the final HTML from the AI. Go to the <b>Admin Lesson Editor</b> (Pin: 1030) and paste your code.</p>
+                <button class="btn btn-primary" onclick="app.router.go('admin')">🚀 Open Lesson Editor Now</button>
+            </div>
+        </div>
+
+    </div>
+</div>
 
         <!-- VIEW: Admin Editor -->
         <div id="view-admin" class="view-section hidden">
@@ -304,7 +452,7 @@
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js";
-        import { getFirestore, collection, addDoc, getDocs, query, where, doc, updateDoc, setDoc, deleteDoc, onSnapshot, arrayUnion, writeBatch, serverTimestamp, increment } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore.js";
+        import { getFirestore, collection, addDoc, getDocs, query, where, doc, updateDoc, setDoc, deleteDoc, onSnapshot, arrayUnion, writeBatch, serverTimestamp, increment, deleteField } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore.js";
         import { getAuth, signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-auth.js";
 
         // CONFIG & CONSTANTS
@@ -593,23 +741,35 @@ card.innerHTML = `
                 if(t === 'shop') dashboard.loadShopManager();
             },
             loadMonitor: () => {
-                onSnapshot(query(collection(db, "students"), where("teacherId", "==", state.currentUser.uid)), (snap) => {
-                    const body = document.getElementById('monitor-body'); body.innerHTML = '';
-                    snap.forEach(d => {
-                        const s = d.data();
-                        const struggle = s.currentSessionScore > 0 && s.currentSessionScore < 50;
-                        body.innerHTML += `<tr>
-                            <td class="${struggle ? 'struggle-alert' : ''}">${s.name} ${struggle ? '⚠️' : ''}</td>
-                            <td>${s.status || 'Idle'}</td>
-                            <td>${s.currentSessionScore || 0}%</td>
-                            <td>
-                                <button class="btn btn-outline btn-sm" onclick="app.dashboard.adjustPoints('${d.id}', 10)">+10 Pts</button> 
-                                <button class="btn btn-danger btn-sm" onclick="app.dashboard.adjustPoints('${d.id}', -10)">-10 Pts</button>
-                            </td>
-                        </tr>`;
-                    });
-                });
-            },
+    // 1. Get the filter value
+    const filterGrade = document.getElementById('monitor-filter-grade').value;
+
+    onSnapshot(query(collection(db, "students"), where("teacherId", "==", state.currentUser.uid)), (snap) => {
+        const body = document.getElementById('monitor-body'); 
+        body.innerHTML = '';
+        
+        snap.forEach(d => {
+            const s = d.data();
+            
+            // --- THE FILTER LOGIC ---
+            // If the teacher selected a grade, skip students who aren't in that grade
+            if (filterGrade !== "" && s.grade !== filterGrade) {
+                return; 
+            }
+
+            const struggle = s.currentSessionScore > 0 && s.currentSessionScore < 50;
+            body.innerHTML += `<tr>
+                <td class="${struggle ? 'struggle-alert' : ''}">${s.name} ${struggle ? '⚠️' : ''}</td>
+                <td>${s.status || 'Idle'}</td>
+                <td>${s.currentSessionScore || 0}%</td>
+                <td>
+                    <button class="btn btn-outline btn-sm" onclick="app.dashboard.adjustPoints('${d.id}', 10)">+10 Pts</button> 
+                    <button class="btn btn-danger btn-sm" onclick="app.dashboard.adjustPoints('${d.id}', -10)">-10 Pts</button>
+                </td>
+            </tr>`;
+        });
+    });
+},
             adjustPoints: async (id, amt) => {
                 await updateDoc(doc(db, "students", id), { 
                     pointsBalance: increment(amt), 
@@ -618,16 +778,33 @@ card.innerHTML = `
                 ui.toast("Points adjusted!");
             },
             loadRoster: async () => {
-                const s = await getDocs(query(collection(db, "students"), where("teacherId", "==", state.currentUser.uid)));
-                const body = document.getElementById('student-list-body');
-                body.innerHTML = s.docs.map(d => {
-                    const data = d.data();
-                    return `<tr style="border-bottom:1px solid #eee;"><td style="padding:10px;"><b>${data.name}</b> (Gr ${data.grade})</td><td><code>${data.loginCode}</code></td><td>
-                        <button class="btn btn-outline btn-sm" onclick="app.dashboard.toggleUserLock('${d.id}', ${data.gamesLocked})">${data.gamesLocked ? '🔓 Unlock Games' : '🔒 Lock Games'}</button>
-                        <button class="btn btn-danger btn-sm" onclick="app.dashboard.deleteStudent('${d.id}')">🗑️</button>
-                    </td></tr>`;
-                }).join('');
-            },
+    // 1. Get the filter value from our new dropdown
+    const filterGrade = document.getElementById('roster-filter-grade').value;
+    
+    // 2. Fetch the students from the database
+    const s = await getDocs(query(collection(db, "students"), where("teacherId", "==", state.currentUser.uid)));
+    const body = document.getElementById('student-list-body');
+    
+    // 3. Clear the list and rebuild it
+    body.innerHTML = s.docs.map(d => {
+        const data = d.data();
+        
+        // --- THE FILTER LOGIC ---
+        // If a filter is selected, and it doesn't match this student's grade, skip them!
+        if (filterGrade !== "" && data.grade !== filterGrade) {
+            return ''; 
+        }
+
+        return `<tr style="border-bottom:1px solid #eee;">
+            <td style="padding:10px;"><b>${data.name}</b> (Gr ${data.grade})</td>
+            <td><code>${data.loginCode}</code></td>
+            <td>
+                <button class="btn btn-outline btn-sm" onclick="app.dashboard.toggleUserLock('${d.id}', ${data.gamesLocked})">${data.gamesLocked ? '🔓 Unlock Games' : '🔒 Lock Games'}</button>
+                <button class="btn btn-danger btn-sm" onclick="app.dashboard.deleteStudent('${d.id}')">🗑️</button>
+            </td>
+        </tr>`;
+    }).join('');
+},
             toggleUserLock: async (id, curr) => {
                 await updateDoc(doc(db, "students", id), { gamesLocked: !curr });
                 dashboard.loadRoster();
@@ -721,6 +898,51 @@ card.innerHTML = `
                 const a = document.createElement('a'); a.setAttribute('hidden', ''); a.setAttribute('href', url); a.setAttribute('download', 'eduquest_grades.csv');
                 document.body.appendChild(a); a.click(); document.body.removeChild(a);
             },
+            resetTopicScores: async () => {
+    // 1. Identify which lesson we want to clear
+    const gameId = document.getElementById('gb-filter-game').value;
+    
+    // 2. Safety Check: Make sure a lesson is actually selected
+    if (!gameId) {
+        alert("Please select a specific lesson from the dropdown first!");
+        return;
+    }
+
+    // 3. The "Are you sure?" confirmation
+    const lessonTitle = state.allGamesMap[gameId]?.title || "this topic";
+    if (!confirm(`⚠️ PERMANENT ACTION: Are you sure you want to delete ALL student scores for "${lessonTitle}"? This cannot be undone.`)) {
+        return;
+    }
+
+    ui.spinner(true); // Show the loading spinner
+
+    try {
+        // 4. Get all students for this teacher
+        const snap = await getDocs(query(collection(db, "students"), where("teacherId", "==", state.currentUser.uid)));
+        
+        // 5. Create a "Batch" (This allows us to update many students at once safely)
+        const batch = writeBatch(db);
+
+        snap.forEach((studentDoc) => {
+            const studentRef = doc(db, "students", studentDoc.id);
+            // This command tells Firebase: "Go inside the 'scores' list and delete only this specific gameId"
+            batch.update(studentRef, {
+                [`scores.${gameId}`]: deleteField()
+            });
+        });
+
+        // 6. Commit the changes to the database
+        await batch.commit();
+        
+        ui.toast(`Scores for "${lessonTitle}" have been cleared!`);
+        app.dashboard.renderGrades(); // Refresh the table to show it's empty
+    } catch (error) {
+        console.error("Reset failed:", error);
+        alert("There was an error resetting scores. Check console.");
+    }
+    
+    ui.spinner(false); // Hide the spinner
+},
             importCSV: () => {
                 const file = document.getElementById('roster-csv').files[0];
                 if(!file) return alert("Select CSV file");
@@ -811,6 +1033,260 @@ card.innerHTML = `
         ui.initDynamicUI();
         authService.check();
         window.app = { router, logic, auth: authService, dashboard };
+        
+        
+        
+        // --- PROMPT FORGE LOGIC ---
+// --- THE 100% COMPLETE MASTER PROMPT DATA (AUDITED) ---
+const FORGE_DATA = {
+    category: null,
+    builders: {
+        ela_gen: { 
+            name: "ELA General Tools Builder", 
+            fields: ["Grade", "Topic", "Theme", "Style", "Count"], 
+            template: `Act as a Senior Educational Game Developer and ELA Specialist. I need a complete, interactive educational game in a single HTML file to embed in my EduQuest platform.
+Lesson Details:
+Grade Level: [[Grade]]
+Topic: [[Topic]]
+Theme: [[Theme]]
+Interaction Style: [[Style]]
+Number of Questions: [[Count]]
+
+### ELA COMPUTATIONAL THINKING INTEGRATION (MANDATORY)
+Analyze the ELA Topic and Grade Level provided. Select one primary Computational Thinking skill that most naturally aligns with the logic of the lesson. Use this skill consistently to anchor the game's mechanics:
+- Decomposition: Breaking complex words into parts (syllables, roots/suffixes) or sentences into specific parts of speech. (Student definition: "Breaking big words or sentences into smaller, easier pieces.")
+- Pattern Recognition: Identifying recurring rules in spelling, rhyming, or how stories are built. (Student definition: "Finding patterns in how we spell and read.")
+- Abstraction: Focusing on essential ideas (like the Main Idea) while ignoring irrelevant details. (Student definition: "Finding the most important part and ignoring the small details.")
+- Algorithmic Thinking: Following step-by-step logic to apply rules for grammar, punctuation, or capitalization. (Student definition: "Following a set of rules to write perfectly.")
+
+Execution Requirements:
+- UI Badge: Display a prominent, bold UI badge in the header: "Skill: [Chosen Skill]".
+- Thinking Wrapper: Below the badge, include the student-friendly definition provided above.
+- Logic: Ensure the game mechanics reflect the chosen skill.
+- Critical Technical Requirements: Single File, Responsive (75vh iframe), No Internal Save Button.
+- The "Gradebook Connection" Logic (CRUCIAL):
+Variables: Track currentScore (0-100), totalQuestions, and correctAnswers.
+Immediate Trigger: Every time the student answers a question, you must run this code:
+window.parent.postMessage({ type: 'TOOL_SCORE', score: Math.round((correctAnswers / totalQuestions) * 100), total: totalQuestions, correct: correctAnswers }, '*');
+
+Guiding Blueprint for Item Creation:
+- Structure: Stimulus tied to text, Clear stems, Parallel options.
+- Construction: Precise language, Alignment to standards, Quality distractors.
+- Rigor (DOK): DOK 1 (Recall), DOK 2 (Infer), DOK 3 (Analyze).` 
+        },
+        
+        math_gen: { 
+            name: "Mathematics General Tools Builder", 
+            fields: ["Grade", "Topic", "Theme", "Style", "Count"], 
+            template: `Act as a Senior Educational Game Developer. I need a complete, interactive educational game in a single HTML file.
+Lesson Details:
+Grade Level: [[Grade]] | Topic: [[Topic]] | Theme: [[Theme]] | Interaction: [[Style]] | Questions: [[Count]]
+
+### COMPUTATIONAL THINKING INTEGRATION (MANDATORY)
+Select primary CT skill (Decomposition, Pattern Recognition, Abstraction, or Algorithmic Thinking).
+- State chosen skill in a large UI badge.
+- One-sentence Student-Friendly Definition explaining the "Why".
+- The game's mechanics must reflect this skill (e.g., typing into three separate place-value boxes).
+
+Technical Requirements:
+- Resume Logic: Check window.INITIAL_SCORE.
+- Handshake: Every time a student answers (even if wrong), run:
+window.parent.postMessage({ type: 'TOOL_SCORE', score: Math.round((correctAnswers / totalQuestions) * 100), total: totalQuestions, correct: correctAnswers }, '*');
+
+Visual Style: "EdTech" design: Large buttons, Nunito/Arial, Blue (#0077cc), Green (#28a745).
+Rigor: Item Type adherence, Stimulus alignment, DOK 1-3 progression.`
+        },
+
+        ela_pdf: { 
+            name: "ELA Tools from PDF", 
+            fields: ["Grade", "Theme", "PDF_Content"], 
+            template: `Act as a Senior Learning Experience (LX) Designer and Full-Stack Developer.
+Goal: Transform the attached PDF Curriculum into a high-engagement ELA interactive game.
+PDF CONTENT: [[PDF_Content]]
+
+STEP 1: CURRICULUM ANALYSIS (Internal Monologue)
+- Analyze objective, extract exact words/sentences, identify scaffolding.
+STEP 2: CT INTEGRATION (MANDATORY)
+- Anchor to one: Decomposition, Pattern Recognition, Abstraction, or Algorithmic Thinking.
+- Display UI Badge and student-friendly definition.
+STEP 3: TECHNICAL ARCHITECTURE
+- Handshake: window.parent.postMessage({ type: 'TOOL_SCORE', score: Math.round((correctAnswers / totalQuestions) * 100), total: totalQuestions, correct: correctAnswers }, '*');
+- Responsive for 75vh iframe.
+STEP 4: VISUAL STYLE
+- "EdTech Pro" – Blue (#0077cc), Green (#28a745). 50 questions based on PDF.`
+        },
+
+        math_pdf: { 
+            name: "Mathematics Tools from PDF", 
+            fields: ["Grade", "Theme", "PDF_Content"], 
+            template: `Act as a Senior Learning Experience (LX) Designer and Expert Full-Stack Developer.
+Goal: Transform the attached PDF curriculum into a "Math Lab Tool".
+PDF CONTENT: [[PDF_Content]]
+
+STEP 1: PEDAGOGICAL ANALYSIS (Internal Monologue)
+- Identify visual models, progression, and trick questions.
+STEP 2: GAMEPLAY & CT STRATEGY
+- Design "Math Lab" mechanics.
+- EXPLICIT INTEGRATION: Include a "Thinking Badge" that updates based on current logic (Decomposition help, Algorithmic checklists, Pattern Recognition streaks, Abstraction level-ups).
+STEP 3: TECHNICAL
+- PERSISTENCE: initialization must check window.INITIAL_SCORE and resume.
+- REAL-TIME SYNC: window.parent.postMessage({ type: 'TOOL_SCORE', score: Math.round((correctAnswers / 50) * 100) }, '*');
+- Visual Style: "Robot Repair" aesthetic: Deep blues, neon greens.`
+        },
+
+        all_subjects: {
+            name: "All Subjects Tool Builder",
+            fields: ["Grade", "Topic", "Count"],
+            template: `Act as a Senior Learning Experience (LX) Designer and Full-Stack Developer.
+Build a complete interactive game.
+Grade Level: [[Grade]] | Topic: [[Topic]] | Count: [[Count]]
+
+STEP 1: CONTENT SOURCE AUDIT
+- Case A: Use provided resource. Case B: Generate 5 original STEM-themed short stories.
+STEP 2: CT INTEGRATION (MANDATORY)
+- Select and anchor to one: Decomposition, Pattern, Abstraction, or Algorithm.
+- UI Definition: "Student-friendly explanation" required.
+STEP 3: TECHNICAL
+- Persistence: Check window.INITIAL_SCORE.
+- Handshake: window.parent.postMessage({ type: 'TOOL_SCORE', score: Math.round((correctAnswers / totalQuestions) * 100), total: totalQuestions, correct: correctAnswers }, '*');`
+        },
+
+        assessment: { 
+            name: "Assessment Builder", 
+            fields: ["Grade", "Topic", "Count", "Source_Text"], 
+            template: `### ROLE: Senior Developer and SC ELA Curriculum Expert.
+Input: Grade [[Grade]], Topic [[Topic]], Count [[Count]]. Stimulus: [[Source_Text]].
+
+PHASE 1: CONTENT GENERATION
+- Align to SC ELA Standard codes. Create stimulus if missing.
+PHASE 2: UI/UX ARCHITECTURE
+- Split-Pane layout (Stimulus left, Items right). Montserrat/Open Sans fonts.
+PHASE 3: TECHNICAL
+- logic to postMessage TOOL_SCORE on every selection. 
+- Blueprint Principles: Adhere to Structure, Construction, and Rigor (DOK 1-3).
+- Guiding Instructions: Strictly follow evidence statements and assessment limits. 
+- Distribute across formats: EBSR, Multi-Select, Constructed-Response, Technology-Enhanced (Drag/Drop).
+
+### 1.2 Define Skill-Mastery Practice Center
+- Content: At least 20 distinct activities.
+- Interaction: "Check Answer" button logic (Lock answer if correct, show "Try Again" if incorrect).
+- Victory Delay: 3-second delay on final submission.` 
+        },
+
+        game_builder: { 
+            name: "Game Tools Builder", 
+            fields: ["Grade", "Topic", "Theme", "Loop"], 
+            template: `ROLE: Master Educator, AAA Narrative Designer, Senior Developer.
+Grade: [[Grade]], Topic: [[Topic]], Theme: [[Theme]], Loop: [[Loop]]
+
+Phase 1: Game Design Document (The Creative Blueprint)
+- Game Title, The Legend (Narrative), The Quest (Goal), Mechanics.
+- SVG Visual Toolkit Definition (Machine-readable descriptions).
+Phase 2: Game Specification File (The Technical Blueprint)
+- Explicit JSON Schema for stages, questions, assets.
+Phase 3: Build Interactive Game
+- Vanilla JS/HTML5/CSS3. Inline SVG.
+- Logic driven by parsing Phase 2 JSON.
+- Handshake: TOOL_SCORE postMessage on every answer.
+STOP after Phase 1 and wait for confirmation.` 
+        },
+
+        multi_activity: { 
+            name: "Multi-Activity Builder", 
+            fields: ["Grade", "Topic", "Activity_Count"], 
+            template: `Build a Multi-Activity tool for [[Topic]], Grade [[Grade]].
+Activity Count: [[Activity_Count]]
+
+1. MULTI-ACTIVITY RESUME HANDSHAKE:
+- Define daySmartScores = [0,0,0,0,0].
+- Logic to distribute window.INITIAL_SCORE so student starts on the correct day.
+2. ADAPTIVE SMART SCORE: 
+- Correct: <70 +10, <90 +5, else +2. Incorrect: -5.
+3. COMPOSITE BROADCAST: 
+- Average all activity scores into one master score (0-100).
+- window.parent.postMessage({ type: 'TOOL_SCORE', score: Number(masterScore), total: 100, correct: masterScore }, '*');
+4. VICTORY DELAY: Show "Full Module Mastered!" for 2.5s at 100%.` 
+        }
+    },
+    checkers: {
+        smart: `### SMART SCORE CHECKER (PATCH)
+1. Define let smartScore;
+2. init(): if (typeof window.INITIAL_SCORE !== 'undefined') { smartScore = window.INITIAL_SCORE; } else { smartScore = 0; }
+3. Update: totalQuestions++; if (isCorrect) { if (smartScore < 70) smartScore += 5; else smartScore += 2; } else { smartScore -= 5; }
+4. Sync: window.parent.postMessage({ type: 'TOOL_SCORE', score: Math.round(smartScore), total: totalQuestions, correct: correctAnswers }, '*');
+5. Victory Delay: 2 seconds at 100% score.`,
+        
+        assessment: `### ASSESSMENT CHECKER (PATCH)
+1. recordGrade(): currentGrade = Math.round((correctAnswers / totalQuestions) * 100).
+2. Sync: window.parent.postMessage({ type: 'TOOL_SCORE', score: Number(currentGrade), total: totalQuestions, correct: correctAnswers }, '*');
+3. Data Integrity: All values must be Integers (Math.round).
+4. Victory Delay: 3-second delay on final submit.`,
+        
+        multi: `### MULTI-ACTIVITY CHECKER (PATCH)
+1. loadSavedProgress(): Distribute window.INITIAL_SCORE across daySmartScores array.
+2. broadcastMasterProgress(): masterScore = Math.round(sum / daySmartScores.length).
+3. Sync: window.parent.postMessage({ type: 'TOOL_SCORE', score: masterScore, total: 100, correct: masterScore }, '*');
+4. Victory Delay: 2.5 seconds at 100% score.`
+    }
+};
+
+app.forge = {
+    selectCategory: (cat) => {
+        FORGE_DATA.category = cat;
+        // Filter builders: if they chose assessment, only show assessment builders, etc.
+        const sel = document.getElementById('forge-builder-select');
+        sel.innerHTML = Object.keys(FORGE_DATA.builders).map(k => `<option value="${k}">${FORGE_DATA.builders[k].name}</option>`).join('');
+        app.forge.renderInputs();
+        app.forge.goToStep(2);
+    },
+    renderInputs: () => {
+        const bKey = document.getElementById('forge-builder-select').value;
+        const fields = FORGE_DATA.builders[bKey].fields;
+        const area = document.getElementById('forge-inputs-area');
+        area.innerHTML = fields.map(f => `
+            <div style="margin-top:10px;">
+                <label style="font-size:0.7rem;">${f}</label>
+                ${f.includes('Content') || f.includes('Text') || f === 'Loop' ? 
+                  `<textarea id="inp-${f}" class="input" style="height:60px;"></textarea>` : 
+                  `<input type="text" id="inp-${f}" class="input">`}
+            </div>
+        `).join('');
+    },
+    generateAndGo: () => {
+        const bKey = document.getElementById('forge-builder-select').value;
+        const builder = FORGE_DATA.builders[bKey];
+        let prompt = builder.template;
+        
+        builder.fields.forEach(f => {
+            const val = document.getElementById(`inp-${f}`).value || `[${f}]`;
+            prompt = prompt.replace(`[[${f}]]`, val);
+        });
+
+        if(document.getElementById('forge-check-readaloud').checked) {
+            prompt += "\n\nREQUIREMENT: Include Read Aloud icons (🔊) for all questions and options using Web Speech API.";
+        }
+
+        document.getElementById('master-prompt-box').textContent = prompt;
+        document.getElementById('checker-prompt-box').textContent = FORGE_DATA.checkers[FORGE_DATA.category];
+        app.forge.goToStep(3);
+    },
+    goToStep: (stepNum) => {
+        document.querySelectorAll('.wizard-step').forEach(s => s.classList.remove('active'));
+        document.getElementById(`forge-step-${stepNum}`).classList.add('active');
+    },
+    copy: (id) => {
+        const text = document.getElementById(id).textContent;
+        navigator.clipboard.writeText(text);
+        ui.toast("Copied to clipboard!");
+    }
+};
+
+// Add to the switchTab function
+const oldSwitchTab = app.dashboard.switchTab;
+app.dashboard.switchTab = (t) => {
+    oldSwitchTab(t);
+    if(t === 'forge') app.forge.goToStep(1); 
+};
     </script>
 </body>
 </html>
