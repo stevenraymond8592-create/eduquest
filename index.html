@@ -1070,9 +1070,23 @@ Immediate Trigger: Every time the student answers a question, you must run this 
 window.parent.postMessage({ type: 'TOOL_SCORE', score: Math.round((correctAnswers / totalQuestions) * 100), total: totalQuestions, correct: correctAnswers }, '*');
 
 Guiding Blueprint for Item Creation:
-- Structure: Stimulus tied to text, Clear stems, Parallel options.
-- Construction: Precise language, Alignment to standards, Quality distractors.
-- Rigor (DOK): DOK 1 (Recall), DOK 2 (Infer), DOK 3 (Analyze).` 
+When creating each assessment item, you must adhere to the following three principles:
+Structure:
+Item Type: Ensure the item matches the requested format (e.g., Multiple-Choice, EBSR, Multi-Select, Constructed Response, Technology-Enhanced).
+-Stimulus: All questions must be directly tied to the provided source text(s).
+Stem: The question stem must be clear, direct, and use grade-appropriate language.
+Options: Answer choices (for selected-response) must be concise and parallel in structure where possible.
+Construction:
+-Clarity: The language used in the stem and options must be precise and unambiguous.
+Alignment: The item must tightly align with the selected ELA standard, its evidence statements, and its assessment limits.
+Quality of Distractors: For multiple-choice and multi-select items, all incorrect options (distractors) must be plausible. They should represent common misconceptions or errors in reasoning, forcing the student to truly comprehend the text rather than just match keywords. Distractors should not be obviously wrong or silly.
+Evidence-Based: All correct answers must be directly supported by evidence within the source text.
+-Rigor (Cognitive Complexity):
+Adhere to the specified Depth of Knowledge (DOK) level for each question.
+DOK 1 (Identify/Recall): Questions that require recalling facts, definitions, or locating specific information directly stated in the text.
+DOK 2 (Infer/Conclude): Questions that require students to apply skills and concepts. This includes making inferences, comparing/contrasting, classifying information, or identifying cause-and-effect relationships that are not explicitly stated.
+DOK 3 (Analyze/Evaluate): Questions that require strategic thinking and reasoning. This includes analyzing complex themes, evaluating an author's argument, justifying a claim with a range of evidence, or synthesizing information across multiple parts of a text.
+` 
         },
         
         math_gen: { 
@@ -1095,8 +1109,27 @@ window.parent.postMessage({ type: 'TOOL_SCORE', score: Math.round((correctAnswer
 
 Visual Style: "EdTech" design: Large buttons, Nunito/Arial, Blue (#0077cc), Green (#28a745).
 Rigor: Item Type adherence, Stimulus alignment, DOK 1-3 progression.`
-        },
 
+            Guiding Blueprint for Item Creation:
+When creating each assessment item, you must adhere to the following three principles:
+Structure:
+Item Type: Ensure the item matches the requested format (e.g., Multiple-Choice, EBSR, Multi-Select, Constructed Response, Technology-Enhanced).
+-Stimulus: All questions must be directly tied to the provided source text(s).
+Stem: The question stem must be clear, direct, and use grade-appropriate language.
+Options: Answer choices (for selected-response) must be concise and parallel in structure where possible.
+Construction:
+-Clarity: The language used in the stem and options must be precise and unambiguous.
+Alignment: The item must tightly align with the selected ELA standard, its evidence statements, and its assessment limits.
+Quality of Distractors: For multiple-choice and multi-select items, all incorrect options (distractors) must be plausible. They should represent common misconceptions or errors in reasoning, forcing the student to truly comprehend the text rather than just match keywords. Distractors should not be obviously wrong or silly.
+Evidence-Based: All correct answers must be directly supported by evidence within the source text.
+-Rigor (Cognitive Complexity):
+Adhere to the specified Depth of Knowledge (DOK) level for each question.
+DOK 1 (Identify/Recall): Questions that require recalling facts, definitions, or locating specific information directly stated in the text.
+DOK 2 (Infer/Conclude): Questions that require students to apply skills and concepts. This includes making inferences, comparing/contrasting, classifying information, or identifying cause-and-effect relationships that are not explicitly stated.
+DOK 3 (Analyze/Evaluate): Questions that require strategic thinking and reasoning. This includes analyzing complex themes, evaluating an author's argument, justifying a claim with a range of evidence, or synthesizing information across multiple parts of a text.
+` 
+        },
+        
         ela_pdf: { 
             name: "ELA Tools from PDF", 
             fields: ["Grade", "Theme", "PDF_Content"], 
@@ -1149,6 +1182,25 @@ STEP 2: CT INTEGRATION (MANDATORY)
 STEP 3: TECHNICAL
 - Persistence: Check window.INITIAL_SCORE.
 - Handshake: window.parent.postMessage({ type: 'TOOL_SCORE', score: Math.round((correctAnswers / totalQuestions) * 100), total: totalQuestions, correct: correctAnswers }, '*');`
+
+        Guiding Blueprint for Item Creation:
+When creating each assessment item, you must adhere to the following three principles:
+Structure:
+Item Type: Ensure the item matches the requested format (e.g., Multiple-Choice, EBSR, Multi-Select, Constructed Response, Technology-Enhanced).
+-Stimulus: All questions must be directly tied to the provided source text(s).
+Stem: The question stem must be clear, direct, and use grade-appropriate language.
+Options: Answer choices (for selected-response) must be concise and parallel in structure where possible.
+Construction:
+-Clarity: The language used in the stem and options must be precise and unambiguous.
+Alignment: The item must tightly align with the selected ELA standard, its evidence statements, and its assessment limits.
+Quality of Distractors: For multiple-choice and multi-select items, all incorrect options (distractors) must be plausible. They should represent common misconceptions or errors in reasoning, forcing the student to truly comprehend the text rather than just match keywords. Distractors should not be obviously wrong or silly.
+Evidence-Based: All correct answers must be directly supported by evidence within the source text.
+-Rigor (Cognitive Complexity):
+Adhere to the specified Depth of Knowledge (DOK) level for each question.
+DOK 1 (Identify/Recall): Questions that require recalling facts, definitions, or locating specific information directly stated in the text.
+DOK 2 (Infer/Conclude): Questions that require students to apply skills and concepts. This includes making inferences, comparing/contrasting, classifying information, or identifying cause-and-effect relationships that are not explicitly stated.
+DOK 3 (Analyze/Evaluate): Questions that require strategic thinking and reasoning. This includes analyzing complex themes, evaluating an author's argument, justifying a claim with a range of evidence, or synthesizing information across multiple parts of a text.
+` 
         },
 
         assessment: { 
@@ -1170,7 +1222,25 @@ PHASE 3: TECHNICAL
 ### 1.2 Define Skill-Mastery Practice Center
 - Content: At least 20 distinct activities.
 - Interaction: "Check Answer" button logic (Lock answer if correct, show "Try Again" if incorrect).
-- Victory Delay: 3-second delay on final submission.` 
+- Victory Delay: 3-second delay on final submission.`
+
+Guiding Blueprint for Item Creation:
+When creating each assessment item, you must adhere to the following three principles:
+Structure:
+Item Type: Ensure the item matches the requested format (e.g., Multiple-Choice, EBSR, Multi-Select, Constructed Response, Technology-Enhanced).
+-Stimulus: All questions must be directly tied to the provided source text(s).
+Stem: The question stem must be clear, direct, and use grade-appropriate language.
+Options: Answer choices (for selected-response) must be concise and parallel in structure where possible.
+Construction:
+-Clarity: The language used in the stem and options must be precise and unambiguous.
+Alignment: The item must tightly align with the selected ELA standard, its evidence statements, and its assessment limits.
+Quality of Distractors: For multiple-choice and multi-select items, all incorrect options (distractors) must be plausible. They should represent common misconceptions or errors in reasoning, forcing the student to truly comprehend the text rather than just match keywords. Distractors should not be obviously wrong or silly.
+Evidence-Based: All correct answers must be directly supported by evidence within the source text.
+-Rigor (Cognitive Complexity):
+Adhere to the specified Depth of Knowledge (DOK) level for each question.
+DOK 1 (Identify/Recall): Questions that require recalling facts, definitions, or locating specific information directly stated in the text.
+DOK 2 (Infer/Conclude): Questions that require students to apply skills and concepts. This includes making inferences, comparing/contrasting, classifying information, or identifying cause-and-effect relationships that are not explicitly stated.
+DOK 3 (Analyze/Evaluate): Questions that require strategic thinking and reasoning. This includes analyzing complex themes, evaluating an author's argument, justifying a claim with a range of evidence, or synthesizing information across multiple parts of a text.
         },
 
         game_builder: { 
