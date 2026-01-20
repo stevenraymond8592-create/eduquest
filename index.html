@@ -224,14 +224,19 @@
 <div id="dash-monitor" class="dashboard-section">
     <div style="margin-bottom: 20px;">
         <h3>Live Classroom Pulse</h3>
-        <div style="margin: 10px 0; display: flex; gap: 10px; align-items: center; background: #f8fafc; padding: 10px; border-radius: 8px;">
-            <label style="font-size: 0.8rem; font-weight: 800;">Filter Grade:</label>
-            <select id="monitor-filter-grade" class="input" style="width: auto; margin: 0;" onchange="app.dashboard.loadMonitor()">
-                <option value="">All Grades</option>
-                <option value="K">K</option><option value="1">1</option><option value="2">2</option>
-                <option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option>
-            </select>
-        </div>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+    <h3>Live Classroom Pulse 🟢</h3>
+    <button class="btn btn-outline btn-sm" onclick="app.dashboard.loadMonitor()">🔄 Refresh Data</button>
+</div>
+
+<div style="margin: 10px 0; display: flex; gap: 10px; align-items: center; background: #f8fafc; padding: 10px; border-radius: 8px;">
+    <label style="font-size: 0.8rem; font-weight: 800;">Filter Grade:</label>
+    <select id="monitor-filter-grade" class="input" style="width: auto; margin: 0;" onchange="app.dashboard.loadMonitor()">
+        <option value="">All Grades</option>
+        <option value="K">K</option><option value="1">1</option><option value="2">2</option>
+        <option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option>
+    </select>
+</div>
     </div>
 
     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
@@ -745,9 +750,15 @@ card.innerHTML = `
                 state.liveScore = Math.round(data.score);
                 state.lastSessionData = { total: data.total || 0, correct: data.correct || 0 };
                 document.getElementById('game-current-score').textContent = state.liveScore;
+                
                 if(state.userType === 'student') {
-                    updateDoc(doc(db, "students", state.studentId), { currentSessionScore: state.liveScore });
-                    if(state.liveScore === 100) logic.manualSave(true); 
+                    // We save the raw numbers (correct/total) so the Monitor can see them
+                    updateDoc(doc(db, "students", state.studentId), { 
+                        currentSessionScore: state.liveScore,
+                        currentSessionTotal: data.total || 0,
+                        currentSessionCorrect: data.correct || 0
+                    });
+                    if(state.liveScore === 100) app.logic.manualSave(true); 
                 }
             },
             manualSave: async (isAutoMastery = false) => {
@@ -870,7 +881,6 @@ card.innerHTML = `
         const stuckBody = document.getElementById('monitor-stuck-body'); 
         const trackBody = document.getElementById('monitor-track-body');
         
-        // Clear both tables
         stuckBody.innerHTML = '';
         trackBody.innerHTML = '';
         
@@ -878,36 +888,42 @@ card.innerHTML = `
             const s = d.data();
             if (filterGrade !== "" && s.grade !== filterGrade) return; 
 
-            // Logic: Is the student struggling? (Score between 1 and 49)
+            // CALCULATE ACCURACY
+            // We pull total and correct from the live session data
+            const total = s.currentSessionTotal || 0;
+            const correct = s.currentSessionCorrect || 0;
+            const accuracy = total > 0 ? Math.round((correct / total) * 100) : 0;
+
+            // IDENTIFY GUESSERS
+            // If they have answered more than 5 questions and accuracy is under 40%
+            const isGuessing = total > 5 && accuracy < 40;
             const isStruggling = s.currentSessionScore > 0 && s.currentSessionScore < 50;
             const isIdle = s.status === "Idle" || !s.status;
 
-            // Create the row HTML
             const rowHTML = `<tr>
-                <td style="font-weight:bold;">${s.name}</td>
+                <td style="font-weight:bold;">
+                    ${s.name}
+                    ${isGuessing ? '<div style="font-size:0.6rem; color:var(--danger); background:#fee2e2; padding:2px 4px; border-radius:4px; display:inline-block;">⚠️ GUESSING</div>' : ''}
+                </td>
                 <td style="font-size:0.75rem;">${s.status || 'Idle'}</td>
+                <td style="font-weight:800; color: ${isStruggling ? 'var(--danger)' : 'var(--secondary)'};">
+                    ${s.currentSessionScore || 0}%
+                </td>
                 <td>
-                    <span style="color: ${isStruggling ? 'var(--danger)' : 'var(--secondary)'}; font-weight:800;">
-                        ${s.currentSessionScore || 0}%
-                    </span>
-                    <div style="margin-top:5px;">
-                        <button class="btn btn-outline btn-sm" style="padding:2px 5px; font-size:0.6rem;" onclick="app.dashboard.adjustPoints('${d.id}', 10)">+10</button>
-                    </div>
+                    <div style="font-size:0.8rem;">${accuracy}%</div>
+                    <div style="font-size:0.6rem; color:#94a3b8;">(${correct}/${total})</div>
                 </td>
             </tr>`;
 
-            // Sort into the correct table
-            if (isStruggling) {
+            if (isStruggling || isGuessing) {
                 stuckBody.innerHTML += rowHTML;
             } else if (!isIdle) {
-                // Only show active students in the "On Track" table
                 trackBody.innerHTML += rowHTML;
             }
         });
 
-        // If a table is empty, show a little message
-        if (stuckBody.innerHTML === '') stuckBody.innerHTML = '<tr><td colspan="3" style="text-align:center; color:#94a3b8; padding:20px;">No students struggling. Good job!</td></tr>';
-        if (trackBody.innerHTML === '') trackBody.innerHTML = '<tr><td colspan="3" style="text-align:center; color:#94a3b8; padding:20px;">No active students currently.</td></tr>';
+        if (stuckBody.innerHTML === '') stuckBody.innerHTML = '<tr><td colspan="4" style="text-align:center; color:#94a3b8; padding:20px;">No students struggling.</td></tr>';
+        if (trackBody.innerHTML === '') trackBody.innerHTML = '<tr><td colspan="4" style="text-align:center; color:#94a3b8; padding:20px;">No active students.</td></tr>';
     });
 },
             adjustPoints: async (id, amt) => {
