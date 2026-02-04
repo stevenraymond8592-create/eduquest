@@ -329,7 +329,10 @@
     </div>
 </div>
                     <div id="assign-student-list" style="max-height:250px; overflow-y:auto; border:1px solid #eee; border-radius:12px; padding:15px; margin-bottom:20px;"></div>
-                    <button class="btn btn-primary" style="width:100%;" onclick="app.dashboard.assignToSelected()">Push Assignment to Students</button>
+                    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:15px; margin-top:20px;">
+    <button class="btn btn-primary" onclick="app.dashboard.assignToSelected()">🚀 Push to Selected</button>
+    <button class="btn btn-danger" onclick="app.dashboard.bulkUnassign()">🗑️ Remove from Selected</button>
+</div>
                 </div>
             </div>
 
@@ -358,8 +361,8 @@
                         <button class="btn btn-outline btn-sm" onclick="app.dashboard.exportGrades()">📥 Download CSV</button>
                     </div>
                     <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:10px; margin:15px 0;">
-                        <select id="gb-filter-grade" class="input" onchange="app.dashboard.renderGrades()"><option value="">All Grades</option><option value="K">K</option><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option></select>
-                        <select id="gb-filter-subject" class="input dynamic-subject-select" onchange="app.dashboard.renderGrades()"></select>
+                        <select id="gb-filter-grade" class="input" onchange="app.dashboard.updateGradebookLessonFilter(); app.dashboard.renderGrades()"><option value="">All Grades</option><option value="K">K</option><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option></select>
+                        <select id="gb-filter-subject" class="input dynamic-subject-select" onchange="app.dashboard.updateGradebookLessonFilter(); app.dashboard.renderGrades()"></select>
                         <select id="gb-filter-game" class="input" onchange="app.dashboard.renderGrades()"><option value="">All Lessons</option></select>
                         <button class="btn btn-danger btn-sm" onclick="app.dashboard.resetTopicScores()" style="white-space: nowrap;">🧹 Reset Topic Scores</button>
                     </div>
@@ -481,6 +484,24 @@
     </div>
 </div>
 
+<!-- VIEW: Student Profile (Quest Log) -->
+<div id="view-profile" class="view-section hidden">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:30px; background: white; padding: 20px; border-radius: var(--radius); box-shadow: var(--shadow);">
+        <div>
+            <button class="btn btn-outline btn-sm" onclick="app.router.go('landing')" style="margin-bottom:10px;">← Back to Map</button>
+            <h2 id="profile-student-name">My Quests</h2>
+        </div>
+        <div style="text-align: right;">
+            <div id="quest-completion-stats" style="font-weight: 800; color: var(--primary); font-size: 1.2rem;">0/0 Quests</div>
+            <div style="font-size: 0.8rem; color: var(--text-light);">Active Assignments</div>
+        </div>
+    </div>
+
+    <div id="profile-quest-list">
+        <!-- Quests will be grouped by subject here -->
+    </div>
+</div>
+
         <!-- VIEW: Admin Editor -->
         <div id="view-admin" class="view-section hidden">
             <button class="btn btn-outline btn-sm" onclick="app.router.go('landing')" style="margin-bottom:20px;">← Back</button>
@@ -528,6 +549,19 @@
                 <button class="btn btn-outline" onclick="document.getElementById('modal-stuff').classList.add('hidden')">Close</button>
             </div>
         </div>
+        
+        <!-- Modal: Assignment Manager -->
+<div id="modal-assignments" class="hidden" style="position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index:3000; display:flex; align-items:center; justify-content:center;">
+    <div class="card" style="width:90%; max-width:500px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+            <h3 id="manage-quest-name">Student's Quests</h3>
+            <button class="btn btn-outline btn-sm" onclick="document.getElementById('modal-assignments').classList.add('hidden')">Close</button>
+        </div>
+        <div id="active-assignments-list" style="max-height:400px; overflow-y:auto; border:1px solid #eee; border-radius:12px; padding:10px;">
+            <!-- Assignments show up here -->
+        </div>
+    </div>
+</div>
 
     </main>
 
@@ -643,6 +677,165 @@
                 router.go('library');
                 ui.spinner(false);
             },
+            
+            // --- ADD THESE INSIDE THE app.logic OBJECT ---
+
+analyzeLessonParts: (htmlCode) => {
+                if (!htmlCode) return 1;
+                
+                let foundNumbers = [1]; // Always assume at least 1 part
+
+                // 1. Look for patterns like "Day 1", "Day 5", "Part 3", "Step 2", "Activity 4"
+                // This catches text inside buttons, headings, and labels
+                const textMatches = htmlCode.match(/(?:Day|Part|Step|Activity|Task|Module|Level)\s*(\d+)/gi);
+                if (textMatches) {
+                    textMatches.forEach(m => {
+                        const num = parseInt(m.match(/\d+/));
+                        if (num) foundNumbers.push(num);
+                    });
+                }
+
+                // 2. Look for IDs or Classes like id="day5", class="tab-3", id="box-2"
+                const attrMatches = htmlCode.match(/(?:id|class|data-id)=["'](?:day|tab|step|part|box|activity|page)-?(\d+)["']/gi);
+                if (attrMatches) {
+                    attrMatches.forEach(m => {
+                        const num = parseInt(m.match(/\d+/));
+                        if (num) foundNumbers.push(num);
+                    });
+                }
+
+                // 3. Look for JS functions that use numbers: show(1), goTo(5), setTab(3)
+                const jsMatches = htmlCode.match(/(?:show|go|set|open|select)(?:Day|Tab|Part|Step|Activity)?\s*\(\s*(\d+)\s*\)/gi);
+                if (jsMatches) {
+                    jsMatches.forEach(m => {
+                        const num = parseInt(m.match(/\d+/));
+                        if (num) foundNumbers.push(num);
+                    });
+                }
+
+                // 4. Look for "Boxes" or "Grid Items" that might be days
+                // Some AI code uses <div class="day-box">1</div>
+                const boxMatches = htmlCode.match(/class=["'][^"']*(?:box|card|btn|square)[^"']*["'][^>]*>\s*(\d+)\s*</gi);
+                if (boxMatches) {
+                    boxMatches.forEach(m => {
+                        const num = parseInt(m.match(/>\s*(\d+)\s*</)[1]);
+                        if (num) foundNumbers.push(num);
+                    });
+                }
+
+                // Return the HIGHEST number found (capped at 50 to avoid weird bugs)
+                const maxFound = Math.max(...foundNumbers);
+                return maxFound > 50 ? 1 : maxFound;
+            },
+
+renderProfile: async () => {
+    ui.spinner(true);
+    const container = document.getElementById('profile-quest-list');
+    const statsHeader = document.getElementById('quest-completion-stats');
+    const nameHeader = document.getElementById('profile-student-name');
+    container.innerHTML = '';
+    
+    nameHeader.textContent = `${state.currentUser.name}'s Quest Log ⚔️`;
+
+    // 1. Get all assigned game IDs
+    const assignedIds = state.currentUser.assignments || [];
+    if (assignedIds.length === 0) {
+        container.innerHTML = `<div class="card" style="text-align:center; padding:40px;"><h3>No quests assigned yet!</h3><p>Check back later or ask your teacher.</p></div>`;
+        statsHeader.textContent = "0/0 Quests";
+        ui.spinner(false);
+        return;
+    }
+
+    // 2. To avoid Firebase Read spikes, we only fetch the games the student is actually assigned
+    // We fetch them all at once using the 'where in' query
+    const gamesSnap = await getDocs(query(collection(db, "games"), where("gameId", "in", assignedIds)));
+    const assignedGames = gamesSnap.docs.map(d => d.data());
+
+    // 3. Filter for UNFINISHED only (Score < 100)
+    const unfinished = assignedGames.filter(g => {
+        const score = state.currentUser.scores?.[g.gameId]?.score || 0;
+        return score < 100;
+    });
+
+    statsHeader.textContent = `${assignedIds.length - unfinished.length} / ${assignedIds.length} Finished`;
+
+    // 4. Group by Subject
+    const grouped = {};
+    unfinished.forEach(g => {
+        if (!grouped[g.subject]) grouped[g.subject] = [];
+        grouped[g.subject].push(g);
+    });
+
+    // 5. Build the UI
+    if (unfinished.length === 0) {
+        container.innerHTML = `<div class="card" style="text-align:center; padding:40px; border: 2px dashed var(--secondary);">
+            <h2 style="color:var(--secondary);">🎉 All Quests Complete!</h2>
+            <p>You've finished everything your teacher assigned. Great job!</p>
+        </div>`;
+    } else {
+        Object.keys(grouped).forEach(subKey => {
+            const subInfo = SUBJECT_CONFIG[subKey] || { label: subKey, color: '#666' };
+            const section = document.createElement('div');
+            section.innerHTML = `<h3 style="margin: 20px 0 10px 10px; display:flex; align-items:center; gap:10px;">
+                <span style="background:${subInfo.color}; width:12px; height:12px; border-radius:50%; display:inline-block;"></span>
+                ${subInfo.label}
+            </h3>`;
+            
+            const grid = document.createElement('div');
+grid.style.display = 'flex';
+grid.style.flexDirection = 'column'; // This makes them stack vertically (list)
+grid.style.gap = '12px';
+
+            grouped[subKey].forEach(game => {
+    const score = state.currentUser.scores?.[game.gameId]?.score || 0;
+    const totalParts = app.logic.analyzeLessonParts(game.htmlCode);
+    
+    // 1. The Bar should ALWAYS match the actual score percentage
+    const progressPercent = score; 
+
+    // 2. Calculate which "Day" or "Part" they are currently on
+    let currentPart = Math.floor((score / 100) * totalParts) + 1;
+    
+    // 3. Safety cap: Don't let currentPart exceed the total number of parts
+    if (currentPart > totalParts) currentPart = totalParts;
+
+                const card = document.createElement('div');
+                card.className = 'card';
+                card.style.cursor = 'pointer';
+                card.style.transition = '0.2s';
+                card.innerHTML = `
+    <div style="display:flex; justify-content:space-between; align-items:center; gap:20px;">
+        <div style="flex: 2;">
+            <h4 style="margin:0; color:var(--primary);">${game.title}</h4>
+            <p style="font-size:0.75rem; color:var(--text-light); margin:2px 0;">${game.topic}</p>
+        </div>
+        
+        <div style="flex: 3; padding: 0 20px;">
+            <div style="display:flex; justify-content:space-between; font-size:0.7rem; margin-bottom:4px;">
+                <span>${totalParts > 1 ? 'Part ' + Math.min(currentPart, totalParts) + ' of ' + totalParts : 'In Progress'}</span>
+                <span style="font-weight:bold;">${score}%</span>
+            </div>
+            <div style="width:100%; height:8px; background:#eee; border-radius:10px; overflow:hidden;">
+                <div style="width:${progressPercent}%; height:100%; background:var(--primary); transition:0.5s;"></div>
+            </div>
+        </div>
+        
+        <div style="flex: 1; text-align: right;">
+            <button class="btn btn-primary btn-sm" style="white-space:nowrap;">Play →</button>
+        </div>
+    </div>
+`;
+                card.onclick = () => app.logic.launchGame(game);
+                grid.appendChild(card);
+            });
+            
+            section.appendChild(grid);
+            container.appendChild(section);
+        });
+    }
+
+    ui.spinner(false);
+},
             switchLibraryTab: (tab) => {
                 state.currentLibraryTab = tab;
                 document.getElementById('tab-btn-quests').classList.toggle('active', tab === 'quests');
@@ -857,6 +1050,67 @@ card.innerHTML = `
         };
 
         const dashboard = {
+            // --- NEW UNASSIGN POWERS START ---
+            manageStudentQuests: async (studentId, studentName) => {
+                state.editingStudentId = studentId; 
+                document.getElementById('manage-quest-name').textContent = `${studentName}'s Assignments`;
+                const list = document.getElementById('active-assignments-list');
+                list.innerHTML = 'Loading...';
+                document.getElementById('modal-assignments').classList.remove('hidden');
+
+                const sSnap = await getDocs(query(collection(db, "students"), where("__name__", "==", studentId)));
+                const assignments = sSnap.docs[0].data().assignments || [];
+
+                if(assignments.length === 0) {
+                    list.innerHTML = '<p style="text-align:center; padding:20px; color:#999;">No active assignments.</p>';
+                    return;
+                }
+
+                const gSnap = await getDocs(query(collection(db, "games"), where("gameId", "in", assignments)));
+                const games = gSnap.docs.map(d => d.data());
+
+                list.innerHTML = games.map(g => `
+                    <div style="display:flex; justify-content:space-between; align-items:center; padding:10px; border-bottom:1px solid #eee;">
+                        <div>
+                            <div style="font-weight:800;">${g.title}</div>
+                            <div style="font-size:0.7rem; color:#666;">${g.subject} • ${g.topic}</div>
+                        </div>
+                        <button class="btn btn-danger btn-sm" onclick="app.dashboard.unassignGame('${g.gameId}')">Unassign ❌</button>
+                    </div>
+                `).join('');
+            },
+
+            unassignGame: async (gameId) => {
+                if(!confirm("Remove this quest from the student?")) return;
+                ui.spinner(true);
+                try {
+                    await updateDoc(doc(db, "students", state.editingStudentId), { assignments: arrayRemove(gameId) });
+                    ui.toast("Quest Unassigned!");
+                    const sName = document.getElementById('manage-quest-name').textContent.split("'")[0];
+                    app.dashboard.manageStudentQuests(state.editingStudentId, sName);
+                } catch (e) { console.error(e); }
+                ui.spinner(false);
+            },
+
+            bulkUnassign: async () => {
+                const gameId = document.getElementById('assign-game').value;
+                const studentIds = Array.from(document.querySelectorAll('.stu-assign-cb:checked')).map(c => c.value);
+                if(!gameId || studentIds.length === 0) return alert("Select lesson and students first.");
+                if(!confirm(`Remove this quest from ${studentIds.length} students?`)) return;
+
+                ui.spinner(true);
+                try {
+                    const batch = writeBatch(db);
+                    studentIds.forEach(sid => {
+                        batch.update(doc(db, "students", sid), { assignments: arrayRemove(gameId) });
+                    });
+                    await batch.commit();
+                    ui.toast(`Successfully removed from ${studentIds.length} students!`);
+                } catch (e) { console.error(e); }
+                ui.spinner(false);
+            },
+            // --- NEW UNASSIGN POWERS END ---
+            
             init: () => dashboard.switchTab('monitor'),
             switchTab: (t) => {
                 document.querySelectorAll('.dashboard-section').forEach(s => s.classList.add('hidden'));
@@ -957,14 +1211,16 @@ card.innerHTML = `
             return ''; 
         }
 
-        return `<tr style="border-bottom:1px solid #eee;">
-            <td style="padding:10px;"><b>${data.name}</b> (Gr ${data.grade})</td>
-            <td><code>${data.loginCode}</code></td>
-            <td>
-                <button class="btn btn-outline btn-sm" onclick="app.dashboard.toggleUserLock('${d.id}', ${data.gamesLocked})">${data.gamesLocked ? '🔓 Unlock Games' : '🔒 Lock Games'}</button>
-                <button class="btn btn-danger btn-sm" onclick="app.dashboard.deleteStudent('${d.id}')">🗑️</button>
-            </td>
-        </tr>`;
+        // Inside dashboard.loadRoster, update the return line:
+return `<tr style="border-bottom:1px solid #eee;">
+    <td style="padding:10px;"><b>${data.name}</b> (Gr ${data.grade})</td>
+    <td><code>${data.loginCode}</code></td>
+    <td>
+        <button class="btn btn-primary btn-sm" onclick="app.dashboard.manageStudentQuests('${d.id}', '${data.name}')">👁️ Quests</button>
+        <button class="btn btn-outline btn-sm" onclick="app.dashboard.toggleUserLock('${d.id}', ${data.gamesLocked})">${data.gamesLocked ? '🔓 Unlock' : '🔒 Lock'}</button>
+        <button class="btn btn-danger btn-sm" onclick="app.dashboard.deleteStudent('${d.id}')">🗑️</button>
+    </td>
+</tr>`;
     }).join('');
 },
             toggleUserLock: async (id, curr) => {
@@ -1024,10 +1280,30 @@ card.innerHTML = `
             },
             loadGrades: async () => {
                 const gSnap = await getDocs(collection(db, "games"));
-                state.allGamesMap = {}; gSnap.forEach(d => state.allGamesMap[d.data().gameId] = d.data());
-                const select = document.getElementById('gb-filter-game'); select.innerHTML = '<option value="">All Lessons</option>';
-                Object.values(state.allGamesMap).forEach(g => select.innerHTML += `<option value="${g.gameId}">${g.title}</option>`);
-                dashboard.renderGrades();
+                state.allGamesMap = {}; 
+                gSnap.forEach(d => state.allGamesMap[d.data().gameId] = d.data());
+                
+                app.dashboard.updateGradebookLessonFilter();
+                app.dashboard.renderGrades();
+            },
+
+            updateGradebookLessonFilter: () => {
+                const gf = document.getElementById('gb-filter-grade').value;
+                const sf = document.getElementById('gb-filter-subject').value;
+                const select = document.getElementById('gb-filter-game');
+                
+                let html = '<option value="">All Lessons</option>';
+                
+                Object.values(state.allGamesMap).forEach(g => {
+                    const matchesGrade = !gf || g.grade === gf;
+                    const matchesSubject = !sf || g.subject === sf;
+                    
+                    if (matchesGrade && matchesSubject) {
+                        html += `<option value="${g.gameId}">${g.title}</option>`;
+                    }
+                });
+                
+                select.innerHTML = html;
             },
             renderGrades: async () => {
                 const snap = await getDocs(query(collection(db, "students"), where("teacherId", "==", state.currentUser.uid)));
@@ -1257,7 +1533,38 @@ card.innerHTML = `
                 await batch.commit();
                 ui.spinner(false);
                 ui.toast("Group assignment complete!");
-            }
+            },
+            
+            // --- ADD THIS INSIDE THE app.dashboard OBJECT ---
+
+bulkUnassign: async () => {
+    const gameId = document.getElementById('assign-game').value;
+    const studentIds = Array.from(document.querySelectorAll('.stu-assign-cb:checked')).map(c => c.value);
+
+    if(!gameId) return alert("Please select a lesson first.");
+    if(studentIds.length === 0) return alert("Please select at least one student.");
+
+    if(!confirm(`Are you sure you want to REMOVE this quest from ${studentIds.length} students? (This will not delete their scores, only hide the quest from their list)`)) return;
+
+    ui.spinner(true);
+    try {
+        const batch = writeBatch(db);
+        
+        studentIds.forEach(sid => {
+            const sRef = doc(db, "students", sid);
+            batch.update(sRef, {
+                assignments: arrayRemove(gameId)
+            });
+        });
+
+        await batch.commit();
+        ui.toast(`Successfully removed from ${studentIds.length} students!`);
+    } catch (e) {
+        console.error(e);
+        alert("Batch unassign failed. Check console.");
+    }
+    ui.spinner(false);
+}
             
         };
 
@@ -1296,8 +1603,16 @@ card.innerHTML = `
                 if(state.userType === 'student') {
                     const rank = ui.getRank(state.currentUser.totalPointsEverEarned || 0);
                     document.getElementById('welcome-text').textContent = `Hi, ${state.currentUser.name}! 👋`;
-                    h.innerHTML = `<button class="btn btn-outline btn-sm" onclick="app.router.go('shop')">🛒 Shop</button> <div class="wallet-display">💰 ${state.currentUser.pointsBalance || 0} <span class="rank-badge" style="background:${rank.color}">${rank.label}</span></div> <button class="btn btn-outline btn-sm" onclick="app.auth.logout()">Sign Out</button>`;
+                    
+                    // This version includes the new ⚔️ My Quests button
+                    h.innerHTML = `
+                        <button class="btn btn-primary btn-sm" onclick="app.logic.renderProfile(); app.router.go('profile')">⚔️ My Quests</button>
+                        <button class="btn btn-outline btn-sm" onclick="app.router.go('shop')">🛒 Shop</button> 
+                        <div class="wallet-display">💰 ${state.currentUser.pointsBalance || 0} <span class="rank-badge" style="background:${rank.color}">${rank.label}</span></div> 
+                        <button class="btn btn-outline btn-sm" onclick="app.auth.logout()">Sign Out</button>
+                    `;
                 } else {
+                    // This keeps the Teacher's Dashboard button working!
                     h.innerHTML = `<button class="btn btn-primary btn-sm" onclick="app.router.go('dashboard')">Dashboard</button> <button class="btn btn-outline btn-sm" onclick="app.auth.logout()">Sign Out</button>`;
                 }
             }
