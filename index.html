@@ -288,11 +288,17 @@
         <option value="6">Grade 6</option>
     </select>
 </div>
-                        <div style="margin: 10px 0; display: flex; gap: 10px;">
-    <button class="btn btn-danger btn-sm" onclick="app.dashboard.bulkToggleLock(true)">🔒 Lock All Games</button>
-    <button class="btn btn-outline btn-sm" onclick="app.dashboard.bulkToggleLock(false)">🔓 Unlock All Games</button>
+                        <div style="margin: 15px 0; display: flex; gap: 10px; background: #f8fafc; padding: 15px; border-radius: 12px; border: 1px solid #e2e8f0; align-items: center; flex-wrap: wrap;">
+    <div style="display:flex; align-items:center; gap:8px;">
+        <label style="font-size:0.8rem; font-weight:800;">Bulk Reward:</label>
+        <input type="number" id="bulk-pts-input" class="input" style="width:80px; margin:0;" placeholder="Amt">
+        <button class="btn btn-primary btn-sm" onclick="app.dashboard.bulkAdjustPoints()">🎁 Award Selected</button>
+    </div>
+    <div style="border-left: 1px solid #ddd; height: 30px; margin: 0 10px;"></div>
+    <button class="btn btn-danger btn-sm" onclick="app.dashboard.bulkToggleLock(true)">🔒 Lock All</button>
+    <button class="btn btn-outline btn-sm" onclick="app.dashboard.bulkToggleLock(false)">🔓 Unlock All</button>
 </div>
-                        <table style="width:100%;"><tbody id="student-list-body"></tbody></table>
+<table style="width:100%;"><tbody id="student-list-body"></tbody></table>
                     </div>
                 </div>
             </div>
@@ -649,18 +655,7 @@
             selectSubject: async (subj) => {
                 if(!state.currentUser) return router.go('student-login');
                 
-                // --- FAST PASS LOGIC FOR GAMES ---
-                if(subj === 'games') {
-                    // This tells the app to skip the list and open your Netlify site immediately
-                    const gamePortal = {
-                        title: "Game Arcade",
-                        externalUrl: "https://halogame2026.netlify.app/",
-                        topic: "Arcade"
-                    };
-                    app.logic.launchGame(gamePortal);
-                    return; // Stop here so it doesn't open the library
-                }
-
+                
                 if(state.userType === 'student' && SUBJECT_CONFIG[subj].lockable && state.currentUser.gamesLocked) {
                     return alert("Your access to Games is currently locked by the teacher.");
                 }
@@ -1050,34 +1045,59 @@ card.innerHTML = `
         };
 
         const dashboard = {
-            // --- NEW UNASSIGN POWERS START ---
             manageStudentQuests: async (studentId, studentName) => {
                 state.editingStudentId = studentId; 
-                document.getElementById('manage-quest-name').textContent = `${studentName}'s Assignments`;
+                document.getElementById('manage-quest-name').textContent = `${studentName}'s Quest Progress`;
                 const list = document.getElementById('active-assignments-list');
-                list.innerHTML = 'Loading...';
+                list.innerHTML = '<div style="text-align:center; padding:20px;">Scanning Student Data...</div>';
                 document.getElementById('modal-assignments').classList.remove('hidden');
 
+                // 1. Get the specific student's document to see THEIR scores
                 const sSnap = await getDocs(query(collection(db, "students"), where("__name__", "==", studentId)));
-                const assignments = sSnap.docs[0].data().assignments || [];
+                const studentData = sSnap.docs[0].data();
+                const assignments = studentData.assignments || [];
+                const studentScores = studentData.scores || {};
 
                 if(assignments.length === 0) {
                     list.innerHTML = '<p style="text-align:center; padding:20px; color:#999;">No active assignments.</p>';
                     return;
                 }
 
+                // 2. Get the game data
                 const gSnap = await getDocs(query(collection(db, "games"), where("gameId", "in", assignments)));
                 const games = gSnap.docs.map(d => d.data());
 
-                list.innerHTML = games.map(g => `
-                    <div style="display:flex; justify-content:space-between; align-items:center; padding:10px; border-bottom:1px solid #eee;">
-                        <div>
-                            <div style="font-weight:800;">${g.title}</div>
-                            <div style="font-size:0.7rem; color:#666;">${g.subject} • ${g.topic}</div>
+                // 3. Build the list with Progress Bars
+                list.innerHTML = games.map(g => {
+                    // Calculate progress using the same logic the student sees
+                    const score = studentScores[g.gameId]?.score || 0;
+                    const totalParts = app.logic.analyzeLessonParts(g.htmlCode);
+                    let currentPart = Math.floor((score / 100) * totalParts) + 1;
+                    if (currentPart > totalParts) currentPart = totalParts;
+                    const progressPercent = score;
+
+                    return `
+                        <div style="padding:15px; border-bottom:1px solid #eee;">
+                            <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:10px;">
+                                <div>
+                                    <div style="font-weight:800; font-size:1rem; color:var(--primary);">${g.title}</div>
+                                    <div style="font-size:0.7rem; color:#666;">${g.subject} • ${g.topic}</div>
+                                </div>
+                                <button class="btn btn-danger btn-sm" style="padding:2px 8px; font-size:0.7rem;" onclick="app.dashboard.unassignGame('${g.gameId}')">Remove ❌</button>
+                            </div>
+
+                            <div style="background:#f1f5f9; padding:10px; border-radius:10px;">
+                                <div style="display:flex; justify-content:space-between; font-size:0.7rem; margin-bottom:5px;">
+                                    <span style="font-weight:700;">${totalParts > 1 ? 'Current Progress: Part ' + currentPart + ' of ' + totalParts : 'Learning Progress'}</span>
+                                    <span style="font-weight:800;">${score}%</span>
+                                </div>
+                                <div style="width:100%; height:8px; background:#fff; border-radius:10px; overflow:hidden; border:1px solid #e2e8f0;">
+                                    <div style="width:${progressPercent}%; height:100%; background:var(--primary); transition:0.5s;"></div>
+                                </div>
+                            </div>
                         </div>
-                        <button class="btn btn-danger btn-sm" onclick="app.dashboard.unassignGame('${g.gameId}')">Unassign ❌</button>
-                    </div>
-                `).join('');
+                    `;
+                }).join('');
             },
 
             unassignGame: async (gameId) => {
@@ -1186,43 +1206,72 @@ card.innerHTML = `
                     if (trackBody.innerHTML === '') trackBody.innerHTML = '<tr><td colspan="4" style="text-align:center; color:#94a3b8; padding:20px;">No active students.</td></tr>';
                 });
             },
-            adjustPoints: async (id, amt) => {
-                await updateDoc(doc(db, "students", id), { 
-                    pointsBalance: increment(amt), 
-                    totalPointsEverEarned: increment(amt > 0 ? amt : 0) 
-                });
-                ui.toast("Points adjusted!");
+            adjustPoints: async (id, inputId) => {
+                const amt = parseInt(document.getElementById(inputId).value);
+                if (isNaN(amt)) return alert("Please enter a valid number.");
+                ui.spinner(true);
+                try {
+                    await updateDoc(doc(db, "students", id), { 
+                        pointsBalance: increment(amt), 
+                        totalPointsEverEarned: increment(amt > 0 ? amt : 0) 
+                    });
+                    ui.toast(`Gave ${amt} points!`);
+                    document.getElementById(inputId).value = ''; 
+                    app.dashboard.loadRoster(); 
+                } catch (e) { console.error(e); }
+                ui.spinner(false);
             },
-            loadRoster: async () => {
-    // 1. Get the filter value from our new dropdown
-    const filterGrade = document.getElementById('roster-filter-grade').value;
-    
-    // 2. Fetch the students from the database
-    const s = await getDocs(query(collection(db, "students"), where("teacherId", "==", state.currentUser.uid)));
-    const body = document.getElementById('student-list-body');
-    
-    // 3. Clear the list and rebuild it
-    body.innerHTML = s.docs.map(d => {
-        const data = d.data();
-        
-        // --- THE FILTER LOGIC ---
-        // If a filter is selected, and it doesn't match this student's grade, skip them!
-        if (filterGrade !== "" && data.grade !== filterGrade) {
-            return ''; 
-        }
 
-        // Inside dashboard.loadRoster, update the return line:
-return `<tr style="border-bottom:1px solid #eee;">
-    <td style="padding:10px;"><b>${data.name}</b> (Gr ${data.grade})</td>
-    <td><code>${data.loginCode}</code></td>
-    <td>
-        <button class="btn btn-primary btn-sm" onclick="app.dashboard.manageStudentQuests('${d.id}', '${data.name}')">👁️ Quests</button>
-        <button class="btn btn-outline btn-sm" onclick="app.dashboard.toggleUserLock('${d.id}', ${data.gamesLocked})">${data.gamesLocked ? '🔓 Unlock' : '🔒 Lock'}</button>
-        <button class="btn btn-danger btn-sm" onclick="app.dashboard.deleteStudent('${d.id}')">🗑️</button>
-    </td>
-</tr>`;
-    }).join('');
-},
+            bulkAdjustPoints: async () => {
+                const amt = parseInt(document.getElementById('bulk-pts-input').value);
+                const checkedCheckboxes = document.querySelectorAll('.roster-check:checked');
+                const studentIds = Array.from(checkedCheckboxes).map(cb => cb.value);
+                if (isNaN(amt) || studentIds.length === 0) return alert("Enter amount and select students.");
+                ui.spinner(true);
+                try {
+                    const batch = writeBatch(db);
+                    studentIds.forEach(sid => {
+                        batch.update(doc(db, "students", sid), {
+                            pointsBalance: increment(amt),
+                            totalPointsEverEarned: increment(amt > 0 ? amt : 0)
+                        });
+                    });
+                    await batch.commit();
+                    ui.toast(`Awarded ${amt} points to ${studentIds.length} students!`);
+                    document.getElementById('bulk-pts-input').value = '';
+                    app.dashboard.loadRoster();
+                } catch (e) { console.error(e); }
+                ui.spinner(false);
+            },
+
+            loadRoster: async () => {
+                const filterGrade = document.getElementById('roster-filter-grade').value;
+                const s = await getDocs(query(collection(db, "students"), where("teacherId", "==", state.currentUser.uid)));
+                const body = document.getElementById('student-list-body');
+                body.innerHTML = s.docs.map(d => {
+                    const data = d.data();
+                    if (filterGrade !== "" && data.grade !== filterGrade) return ''; 
+
+                    return `<tr style="border-bottom:1px solid #eee;">
+                        <td style="width:30px;"><input type="checkbox" class="roster-check" value="${d.id}"></td>
+                        <td style="padding:10px;">
+                            <b>${data.name}</b><br>
+                            <span style="font-size:0.75rem; color:var(--primary);">💰 Balance: ${data.pointsBalance || 0}</span>
+                        </td>
+                        <td><code>${data.loginCode}</code></td>
+                        <td>
+                            <div style="display:flex; gap:5px; align-items:center;">
+                                <input type="number" id="pts-input-${d.id}" class="input" style="width:60px; margin:0; padding:5px; font-size:0.8rem;" placeholder="Amt">
+                                <button class="btn btn-primary btn-sm" onclick="app.dashboard.adjustPoints('${d.id}', 'pts-input-${d.id}')">Add</button>
+                            </div>
+                        </td>
+                        <td style="text-align:right;">
+                            <button class="btn btn-outline btn-sm" onclick="app.dashboard.manageStudentQuests('${d.id}', '${data.name}')">👁️ Quests</button>
+                            <button class="btn btn-danger btn-sm" onclick="app.dashboard.deleteStudent('${d.id}')">🗑️</button>
+                        </td>
+                    </tr>`;
+                }).join('');
+            },
             toggleUserLock: async (id, curr) => {
                 await updateDoc(doc(db, "students", id), { gamesLocked: !curr });
                 dashboard.loadRoster();
