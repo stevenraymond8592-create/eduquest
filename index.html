@@ -934,52 +934,51 @@ card.innerHTML = `
     document.getElementById('view-admin').classList.remove('hidden');
 },
 
-            handleScoreUpdate: (data) => {
+            handleScoreUpdate: async (data) => {
                 state.liveScore = Math.round(data.score);
                 state.lastSessionData = { total: data.total || 0, correct: data.correct || 0 };
                 document.getElementById('game-current-score').textContent = state.liveScore;
                 
-                if(state.userType === 'student') {
-                    // We save the raw numbers (correct/total) so the Monitor can see them
-                    updateDoc(doc(db, "students", state.studentId), { 
+                if(state.userType === 'student' && state.currentGame) {
+                    const gId = state.currentGame.gameId;
+                    const oldScoreData = state.currentUser.scores?.[gId] || { score: 0 };
+                    
+                    const updatePayload = {
                         currentSessionScore: state.liveScore,
                         currentSessionTotal: data.total || 0,
-                        currentSessionCorrect: data.correct || 0
-                    });
-                    if(state.liveScore === 100) app.logic.manualSave(true); 
+                        currentSessionCorrect: data.correct || 0,
+                        lastActive: serverTimestamp()
+                    };
+
+                    // SMART SYNC: Save to permanent gradebook if score improved or hit 100%
+                    if (state.liveScore > oldScoreData.score || state.liveScore === 100) {
+                        let ptsToAdd = 0;
+                        let awardedNow = false;
+                        if (state.liveScore === 100 && !oldScoreData.lifetimePointsAwarded) {
+                            ptsToAdd = 10; awardedNow = true;
+                            ui.confetti();
+                            ui.toast("+10 Mastery Points! 💰");
+                        }
+
+                        updatePayload[`scores.${gId}`] = {
+                            score: state.liveScore,
+                            total: data.total || 0,
+                            correct: data.correct || 0,
+                            date: new Date().toISOString(),
+                            lifetimePointsAwarded: awardedNow || (oldScoreData.lifetimePointsAwarded || false)
+                        };
+
+                        if (ptsToAdd > 0) {
+                            updatePayload.pointsBalance = increment(ptsToAdd);
+                            updatePayload.totalPointsEverEarned = increment(ptsToAdd);
+                        }
+                    }
+                    await updateDoc(doc(db, "students", state.studentId), updatePayload);
                 }
             },
-            manualSave: async (isAutoMastery = false) => {
-                if(state.userType !== 'student' || !state.currentGame) return;
-                const gId = state.currentGame.gameId;
-                const scoreData = state.currentUser.scores?.[gId];
-                
-                let ptsToAdd = 0;
-                let awardedNow = false;
-                if(state.liveScore === 100 && (!scoreData || !scoreData.lifetimePointsAwarded)) {
-                    ptsToAdd = 10;
-                    awardedNow = true;
-                    ui.confetti();
-                }
 
-                const scoreObj = { 
-                    score: state.liveScore, 
-                    total: state.lastSessionData.total,
-                    correct: state.lastSessionData.correct,
-                    date: new Date().toISOString(), 
-                    lifetimePointsAwarded: awardedNow || (scoreData?.lifetimePointsAwarded || false) 
-                };
-                const best = (scoreData?.score) || 0;
-
-                await updateDoc(doc(db, "students", state.studentId), {
-                    [`scores.${gId}`]: state.liveScore >= best ? scoreObj : scoreData,
-                    pointsBalance: increment(ptsToAdd),
-                    totalPointsEverEarned: increment(ptsToAdd),
-                    status: `✅ Last Score: ${state.liveScore}% (${state.currentGame.title})`
-                });
-
-                if(awardedNow) ui.toast("+10 Mastery Points Earned! 💰");
-                else if(!isAutoMastery) ui.toast("Progress Saved!");
+            manualSave: async () => {
+                ui.toast("Progress Synchronized! ✅");
             },
             exitGame: () => { if(state.userType === 'student') updateDoc(doc(db, "students", state.studentId), { status: "Idle", currentSessionScore: 0 }); router.go('library'); },
             publishGame: async () => {
@@ -1327,13 +1326,19 @@ card.innerHTML = `
                 await Promise.all(sIds.map(id => updateDoc(doc(db, "students", id), { assignments: arrayUnion(gId) })));
                 ui.toast(`Successfully pushed lesson to ${sIds.length} students!`); ui.spinner(false);
             },
-            loadGrades: async () => {
+           loadGrades: async () => {
+                ui.spinner(true);
+                // 1. Fetch all games to create a reference map
                 const gSnap = await getDocs(collection(db, "games"));
                 state.allGamesMap = {}; 
                 gSnap.forEach(d => state.allGamesMap[d.data().gameId] = d.data());
                 
+                // 2. Set up the dropdowns
                 app.dashboard.updateGradebookLessonFilter();
-                app.dashboard.renderGrades();
+                
+                // 3. Wait for the grades to finish rendering
+                await app.dashboard.renderGrades();
+                ui.spinner(false);
             },
 
             updateGradebookLessonFilter: () => {
@@ -1354,29 +1359,62 @@ card.innerHTML = `
                 
                 select.innerHTML = html;
             },
-            renderGrades: async () => {
-                const snap = await getDocs(query(collection(db, "students"), where("teacherId", "==", state.currentUser.uid)));
-                const body = document.getElementById('grade-body'); body.innerHTML = '';
-                const gf = document.getElementById('gb-filter-grade').value, sf = document.getElementById('gb-filter-subject').value, gmf = document.getElementById('gb-filter-game').value;
+         renderGrades: async () => {
+                ui.spinner(true);
+                const studentSnap = await getDocs(query(collection(db, "students"), where("teacherId", "==", state.currentUser.uid)));
+                const body = document.getElementById('grade-body'); 
+                body.innerHTML = '';
+
+                const gf = document.getElementById('gb-filter-grade').value;
+                const sf = document.getElementById('gb-filter-subject').value;
+                const gmf = document.getElementById('gb-filter-game').value;
                 
-                snap.forEach(d => {
-                    const s = d.data(); if(gf && s.grade !== gf) return;
-                    Object.keys(s.scores || {}).forEach(gid => {
-                        const m = state.allGamesMap[gid]; if(!m) return;
-                        if(sf && m.subject !== sf) return; if(gmf && gid !== gmf) return;
-                        const sd = s.scores[gid];
-                        body.innerHTML += `<tr><td>${s.name}</td><td>${m.title}</td><td style="font-weight:bold;">${sd.score}%</td><td>${sd.correct || 0} / ${sd.total || 0}</td><td>${new Date(sd.date).toLocaleDateString()}</td></tr>`;
+                studentSnap.forEach(sDoc => {
+                    const s = sDoc.data();
+                    if(gf && s.grade !== gf) return;
+
+                    // This ensures all assigned students show up, even if they have 0% progress
+                    let lessonsToShow = gmf ? [gmf] : (s.assignments || []);
+
+                    lessonsToShow.forEach(gid => {
+                        const gameMeta = state.allGamesMap[gid];
+                        if (!gameMeta) return;
+                        if(sf && gameMeta.subject !== sf) return;
+
+                        const scoreData = s.scores?.[gid];
+                        const bestScore = scoreData ? scoreData.score : 0;
+                        const accuracy = scoreData ? `${scoreData.correct}/${scoreData.total}` : '0/0';
+                        const lastDate = scoreData ? new Date(scoreData.date).toLocaleDateString() : '—';
+                        
+                        const isStarted = scoreData ? true : false;
+                        const statusColor = bestScore >= 80 ? 'var(--secondary)' : (isStarted ? 'var(--warning)' : '#cbd5e1');
+                        const statusText = isStarted ? (bestScore === 100 ? 'Mastered' : 'In Progress') : 'Not Started';
+
+                        body.innerHTML += `
+                            <tr>
+                                <td>
+                                    <div style="font-weight:bold;">${s.name}</div>
+                                    <div style="font-size:0.65rem; color:${statusColor}">● ${statusText}</div>
+                                </td>
+                                <td style="font-size:0.85rem;">${gameMeta.title}</td>
+                                <td style="font-weight:800; color:${statusColor}">${bestScore}%</td>
+                                <td style="font-size:0.85rem; color:var(--text-light);">${accuracy}</td>
+                                <td style="font-size:0.85rem; color:var(--text-light);">${lastDate}</td>
+                            </tr>`;
                     });
                 });
+                if (body.innerHTML === '') body.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:20px;">No matching records found.</td></tr>';
+                ui.spinner(false);
             },
             exportGrades: async () => {
                 const snap = await getDocs(query(collection(db, "students"), where("teacherId", "==", state.currentUser.uid)));
                 let csv = "Student,Subject,Lesson,Score,Accuracy,Date\n";
                 snap.forEach(d => {
                     const s = d.data();
-                    Object.keys(s.scores || {}).forEach(gid => {
+                    // Also updated CSV export to show all assigned lessons
+                    (s.assignments || []).forEach(gid => {
                         const m = state.allGamesMap[gid]; if(!m) return;
-                        const sd = s.scores[gid];
+                        const sd = s.scores?.[gid] || { score: 0, correct: 0, total: 0, date: "Not Started" };
                         csv += `"${s.name}","${m.subject}","${m.title}","${sd.score}%","${sd.correct}/${sd.total}","${sd.date}"\n`;
                     });
                 });
@@ -1386,50 +1424,32 @@ card.innerHTML = `
                 document.body.appendChild(a); a.click(); document.body.removeChild(a);
             },
             resetTopicScores: async () => {
-    // 1. Identify which lesson we want to clear
-    const gameId = document.getElementById('gb-filter-game').value;
-    
-    // 2. Safety Check: Make sure a lesson is actually selected
-    if (!gameId) {
-        alert("Please select a specific lesson from the dropdown first!");
-        return;
-    }
-
-    // 3. The "Are you sure?" confirmation
-    const lessonTitle = state.allGamesMap[gameId]?.title || "this topic";
-    if (!confirm(`⚠️ PERMANENT ACTION: Are you sure you want to delete ALL student scores for "${lessonTitle}"? This cannot be undone.`)) {
-        return;
-    }
-
-    ui.spinner(true); // Show the loading spinner
-
-    try {
-        // 4. Get all students for this teacher
-        const snap = await getDocs(query(collection(db, "students"), where("teacherId", "==", state.currentUser.uid)));
-        
-        // 5. Create a "Batch" (This allows us to update many students at once safely)
-        const batch = writeBatch(db);
-
-        snap.forEach((studentDoc) => {
-            const studentRef = doc(db, "students", studentDoc.id);
-            // This command tells Firebase: "Go inside the 'scores' list and delete only this specific gameId"
-            batch.update(studentRef, {
-                [`scores.${gameId}`]: deleteField()
-            });
-        });
-
-        // 6. Commit the changes to the database
-        await batch.commit();
-        
-        ui.toast(`Scores for "${lessonTitle}" have been cleared!`);
-        app.dashboard.renderGrades(); // Refresh the table to show it's empty
-    } catch (error) {
-        console.error("Reset failed:", error);
-        alert("There was an error resetting scores. Check console.");
-    }
-    
-    ui.spinner(false); // Hide the spinner
-},
+                const gameId = document.getElementById('gb-filter-game').value;
+                if (!gameId) {
+                    alert("Please select a specific lesson from the dropdown first!");
+                    return;
+                }
+                const lessonTitle = state.allGamesMap[gameId]?.title || "this topic";
+                if (!confirm(`⚠️ PERMANENT ACTION: Are you sure you want to delete ALL student scores for "${lessonTitle}"? This cannot be undone.`)) {
+                    return;
+                }
+                ui.spinner(true);
+                try {
+                    const snap = await getDocs(query(collection(db, "students"), where("teacherId", "==", state.currentUser.uid)));
+                    const batch = writeBatch(db);
+                    snap.forEach((studentDoc) => {
+                        const studentRef = doc(db, "students", studentDoc.id);
+                        batch.update(studentRef, { [`scores.${gameId}`]: deleteField() });
+                    });
+                    await batch.commit();
+                    ui.toast(`Scores for "${lessonTitle}" have been cleared!`);
+                    app.dashboard.renderGrades();
+                } catch (error) {
+                    console.error("Reset failed:", error);
+                    alert("There was an error resetting scores. Check console.");
+                }
+                ui.spinner(false);
+            },
             importCSV: () => {
                 const file = document.getElementById('roster-csv').files[0];
                 if(!file) return alert("Select CSV file");
@@ -2041,3 +2061,4 @@ app.dashboard.switchTab = (t) => {
     </script>
 </body>
 </html>
+
