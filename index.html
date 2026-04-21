@@ -1008,11 +1008,17 @@ card.innerHTML = `
                         lastActive: serverTimestamp()
                     };
 
-                    // NEW: Capture granular data if provided by the lesson
-                    if (data.breakdown) updatePayload[`scores.${gId}.breakdown`] = data.breakdown;
-                    if (data.labels) updatePayload[`scores.${gId}.labels`] = data.labels;
+                    // 1. CAPTURE THE ARRAY: Look for 'breakdown' or 'dayScores'
+                    const granularData = data.breakdown || data.dayScores || data.scores;
+                    if (granularData && Array.isArray(granularData)) {
+                        updatePayload[`scores.${gId}.breakdown`] = granularData;
+                    }
+                    
+                    // 2. CAPTURE THE LABELS: Look for 'labels'
+                    if (data.labels && Array.isArray(data.labels)) {
+                        updatePayload[`scores.${gId}.labels`] = data.labels;
+                    }
 
-                    // SMART SYNC: Save to permanent gradebook if score improved or hit 100%
                     if (state.liveScore > oldScoreData.score || state.liveScore === 100) {
                         let ptsToAdd = 0;
                         let awardedNow = false;
@@ -1022,7 +1028,6 @@ card.innerHTML = `
                             ui.toast("+10 Mastery Points! 💰");
                         }
 
-                        // Save the main score
                         updatePayload[`scores.${gId}.score`] = state.liveScore;
                         updatePayload[`scores.${gId}.total`] = data.total || 0;
                         updatePayload[`scores.${gId}.correct`] = data.correct || 0;
@@ -2197,10 +2202,16 @@ Include clear learner instructions, progress indicators, and feedback mechanisms
 4. Victory Delay: 3-second delay on final submit.`,
         
         multi: `### MULTI-ACTIVITY CHECKER (PATCH)
-1. loadSavedProgress(): Distribute window.INITIAL_SCORE across daySmartScores array.
-2. broadcastMasterProgress(): masterScore = Math.round(sum / daySmartScores.length).
-3. Sync: window.parent.postMessage({ type: 'TOOL_SCORE', score: masterScore, total: 100, correct: masterScore }, '*');
-4. Victory Delay: 2.5 seconds at 100% score.`
+1. Load State: Check localStorage FIRST. If empty, check window.INITIAL_BREAKDOWN.
+2. Anti-Smear: If using window.INITIAL_SCORE (fallback only), do not distribute it across empty tabs unless it's a new device.
+3. Live Handshake: On every score update, run:
+   window.parent.postMessage({ 
+       type: 'TOOL_SCORE', 
+       score: masterAverage, 
+       breakdown: smartScoresArray, 
+       labels: ["Activity 1", "Activity 2", "Activity 3", "Activity 4", "Assessment"] 
+   }, '*');
+4. Persistence: Save the smartScoresArray to localStorage after every change.`
     }
 };
 
