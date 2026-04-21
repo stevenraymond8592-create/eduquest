@@ -312,6 +312,13 @@
                             <label style="font-size:0.75rem; font-weight:800;">1. Subject</label>
                             <select id="assign-subject" class="input dynamic-subject-select" onchange="app.dashboard.loadAssignableGames()"></select>
                         </div>
+                        <div class="card" style="margin-top:20px; border-top: 5px solid var(--ela);">
+                    <h3>Current Active Assignments</h3>
+                    <p style="font-size:0.8rem; color:var(--text-light); margin-bottom:15px;">These are lessons currently in your students' Quest Logs. You can remove them globally here.</p>
+                    <div id="active-assignments-summary" style="display:grid; grid-template-columns: 1fr; gap:15px;">
+                        <!-- Global assignment list appears here -->
+                    </div>
+                </div>
                         <div>
                             <label style="font-size:0.75rem; font-weight:800;">2. Grade Filter</label>
                             <select id="assign-grade-filter" class="input" onchange="app.dashboard.loadAssignableGames()">
@@ -569,6 +576,31 @@
     </div>
 </div>
 
+<!-- Modal: Mastery Details -->
+        <div id="modal-mastery" class="hidden" style="position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index:4000; display:flex; align-items:center; justify-content:center;">
+            <div class="card" style="width:90%; max-width:400px;">
+                <h3 id="mastery-modal-title" style="margin-bottom:15px; color:var(--primary);">Lesson Details</h3>
+                <div id="mastery-details-list" style="margin:20px 0; max-height:300px; overflow-y:auto; border-top:1px solid #eee;">
+                    <!-- Tab scores appear here -->
+                </div>
+                <button class="btn btn-outline" style="width:100%;" onclick="document.getElementById('modal-mastery').classList.add('hidden')">Close</button>
+            </div>
+        </div>
+        
+        <!-- Modal: Student Quest Log (Popup) -->
+        <div id="modal-quests" class="hidden" style="position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index:5000; display:flex; align-items:center; justify-content:center;">
+            <div class="card" style="width:95%; max-width:600px; max-height:85vh; overflow:hidden; display:flex; flex-direction:column;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
+                    <h2 id="quest-modal-title" style="margin:0; font-size:1.4rem;">My Quests ⚔️</h2>
+                    <button class="btn btn-outline btn-sm" onclick="document.getElementById('modal-quests').classList.add('hidden')">Close</button>
+                </div>
+                <div id="quest-completion-stats" style="background:var(--background); padding:10px; border-radius:10px; text-align:center; font-weight:800; color:var(--primary); margin-bottom:15px;">0/0 Completed</div>
+                <div id="profile-quest-list" style="overflow-y:auto; flex-grow:1; padding-right:10px;">
+                    <!-- Quests appear here -->
+                </div>
+            </div>
+        </div>
+
     </main>
 
     <div id="toast" class="toast">Action Successful</div>
@@ -657,8 +689,9 @@
                 
                 
                 if(state.userType === 'student' && SUBJECT_CONFIG[subj].lockable && state.currentUser.gamesLocked) {
-                    return alert("Your access to Games is currently locked by the teacher.");
-                }
+        ui.toast("🚫 Access Restricted: Ask your teacher to unlock Games.");
+        return; 
+    }
 
                 state.selectedSubject = subj;
                 document.getElementById('library-subject-title').textContent = SUBJECT_CONFIG[subj].label;
@@ -724,113 +757,111 @@ analyzeLessonParts: (htmlCode) => {
             },
 
 renderProfile: async () => {
-    ui.spinner(true);
-    const container = document.getElementById('profile-quest-list');
-    const statsHeader = document.getElementById('quest-completion-stats');
-    const nameHeader = document.getElementById('profile-student-name');
-    container.innerHTML = '';
-    
-    nameHeader.textContent = `${state.currentUser.name}'s Quest Log ⚔️`;
+                ui.spinner(true);
+                const container = document.getElementById('profile-quest-list');
+                const statsHeader = document.getElementById('quest-completion-stats');
+                container.innerHTML = '<p style="text-align:center; padding:20px;">Opening Quest Log...</p>';
+                
+                // Show the modal immediately
+                document.getElementById('modal-quests').classList.remove('hidden');
 
-    // 1. Get all assigned game IDs
-    const assignedIds = state.currentUser.assignments || [];
-    if (assignedIds.length === 0) {
-        container.innerHTML = `<div class="card" style="text-align:center; padding:40px;"><h3>No quests assigned yet!</h3><p>Check back later or ask your teacher.</p></div>`;
-        statsHeader.textContent = "0/0 Quests";
-        ui.spinner(false);
-        return;
-    }
+                const assignedIds = state.currentUser.assignments || [];
+                if (assignedIds.length === 0) {
+                    container.innerHTML = `<div style="text-align:center; padding:40px;"><h3>No quests assigned yet!</h3><p>Check back later.</p></div>`;
+                    statsHeader.textContent = "0/0 Quests";
+                    ui.spinner(false);
+                    return;
+                }
 
-    // 2. To avoid Firebase Read spikes, we only fetch the games the student is actually assigned
-    // We fetch them all at once using the 'where in' query
-    const gamesSnap = await getDocs(query(collection(db, "games"), where("gameId", "in", assignedIds)));
-    const assignedGames = gamesSnap.docs.map(d => d.data());
+                try {
+                    let allAssignedGames = [];
+                    for (let i = 0; i < assignedIds.length; i += 30) {
+                        const chunk = assignedIds.slice(i, i + 30);
+                        const q = query(collection(db, "games"), where("gameId", "in", chunk));
+                        const snap = await getDocs(q);
+                        snap.forEach(doc => allAssignedGames.push(doc.data()));
+                    }
 
-    // 3. Filter for UNFINISHED only (Score < 100)
-    const unfinished = assignedGames.filter(g => {
-        const score = state.currentUser.scores?.[g.gameId]?.score || 0;
-        return score < 100;
-    });
+                    const unfinished = allAssignedGames.filter(g => (state.currentUser.scores?.[g.gameId]?.score || 0) < 100);
+                    statsHeader.textContent = `${assignedIds.length - unfinished.length} / ${assignedIds.length} Quests Completed`;
 
-    statsHeader.textContent = `${assignedIds.length - unfinished.length} / ${assignedIds.length} Finished`;
+                    if (unfinished.length === 0) {
+                        container.innerHTML = `<div style="text-align:center; padding:30px; border:2px dashed var(--secondary); border-radius:15px;">
+                            <h3 style="color:var(--secondary);">🎉 All Quests Complete!</h3>
+                            <p>Great job! You've mastered everything.</p>
+                        </div>`;
+                    } else {
+                        container.innerHTML = "";
+                        const grouped = {};
+                        unfinished.forEach(g => {
+                            if (!grouped[g.subject]) grouped[g.subject] = [];
+                            grouped[g.subject].push(g);
+                        });
 
-    // 4. Group by Subject
-    const grouped = {};
-    unfinished.forEach(g => {
-        if (!grouped[g.subject]) grouped[g.subject] = [];
-        grouped[g.subject].push(g);
-    });
+                        Object.keys(grouped).forEach(subKey => {
+                            const subInfo = SUBJECT_CONFIG[subKey] || { label: subKey, color: '#666' };
+                            const section = document.createElement('div');
+                            section.innerHTML = `<h4 style="margin: 15px 0 8px 5px; color:var(--text-light); text-transform:uppercase; font-size:0.7rem; letter-spacing:1px;">${subInfo.label}</h4>`;
+                            
+                            grouped[subKey].forEach(game => {
+                                const scoreData = state.currentUser.scores?.[game.gameId] || {};
+                                const score = scoreData.score || 0;
+                                const breakdown = scoreData.breakdown || [];
+                                const labels = scoreData.labels || [];
+                                
+                                // Generate the HTML for the little tab pills
+                                let breakdownHTML = "";
+                                if (breakdown.length > 0) {
+                                    breakdownHTML = `<div style="display:flex; flex-wrap:wrap; gap:5px; margin-top:10px;">`;
+                                    breakdown.forEach((s, idx) => {
+                                        const label = labels[idx] || `P${idx+1}`;
+                                        const isDone = s >= 100;
+                                        const isStarted = s > 0;
+                                        const bgColor = isDone ? 'var(--secondary)' : (isStarted ? 'var(--primary)' : '#eee');
+                                        const textColor = (isDone || isStarted) ? 'white' : '#999';
+                                        
+                                        breakdownHTML += `
+                                            <div style="font-size:0.6rem; padding:3px 8px; border-radius:12px; background:${bgColor}; color:${textColor}; font-weight:800;">
+                                                ${label}: ${s}%
+                                            </div>`;
+                                    });
+                                    breakdownHTML += `</div>`;
+                                }
 
-    // 5. Build the UI
-    if (unfinished.length === 0) {
-        container.innerHTML = `<div class="card" style="text-align:center; padding:40px; border: 2px dashed var(--secondary);">
-            <h2 style="color:var(--secondary);">🎉 All Quests Complete!</h2>
-            <p>You've finished everything your teacher assigned. Great job!</p>
-        </div>`;
-    } else {
-        Object.keys(grouped).forEach(subKey => {
-            const subInfo = SUBJECT_CONFIG[subKey] || { label: subKey, color: '#666' };
-            const section = document.createElement('div');
-            section.innerHTML = `<h3 style="margin: 20px 0 10px 10px; display:flex; align-items:center; gap:10px;">
-                <span style="background:${subInfo.color}; width:12px; height:12px; border-radius:50%; display:inline-block;"></span>
-                ${subInfo.label}
-            </h3>`;
-            
-            const grid = document.createElement('div');
-grid.style.display = 'flex';
-grid.style.flexDirection = 'column'; // This makes them stack vertically (list)
-grid.style.gap = '12px';
-
-            grouped[subKey].forEach(game => {
-    const score = state.currentUser.scores?.[game.gameId]?.score || 0;
-    const totalParts = app.logic.analyzeLessonParts(game.htmlCode);
-    
-    // 1. The Bar should ALWAYS match the actual score percentage
-    const progressPercent = score; 
-
-    // 2. Calculate which "Day" or "Part" they are currently on
-    let currentPart = Math.floor((score / 100) * totalParts) + 1;
-    
-    // 3. Safety cap: Don't let currentPart exceed the total number of parts
-    if (currentPart > totalParts) currentPart = totalParts;
-
-                const card = document.createElement('div');
-                card.className = 'card';
-                card.style.cursor = 'pointer';
-                card.style.transition = '0.2s';
-                card.innerHTML = `
-    <div style="display:flex; justify-content:space-between; align-items:center; gap:20px;">
-        <div style="flex: 2;">
-            <h4 style="margin:0; color:var(--primary);">${game.title}</h4>
-            <p style="font-size:0.75rem; color:var(--text-light); margin:2px 0;">${game.topic}</p>
-        </div>
-        
-        <div style="flex: 3; padding: 0 20px;">
-            <div style="display:flex; justify-content:space-between; font-size:0.7rem; margin-bottom:4px;">
-                <span>${totalParts > 1 ? 'Part ' + Math.min(currentPart, totalParts) + ' of ' + totalParts : 'In Progress'}</span>
-                <span style="font-weight:bold;">${score}%</span>
-            </div>
-            <div style="width:100%; height:8px; background:#eee; border-radius:10px; overflow:hidden;">
-                <div style="width:${progressPercent}%; height:100%; background:var(--primary); transition:0.5s;"></div>
-            </div>
-        </div>
-        
-        <div style="flex: 1; text-align: right;">
-            <button class="btn btn-primary btn-sm" style="white-space:nowrap;">Play →</button>
-        </div>
-    </div>
-`;
-                card.onclick = () => app.logic.launchGame(game);
-                grid.appendChild(card);
-            });
-            
-            section.appendChild(grid);
-            container.appendChild(section);
-        });
-    }
-
-    ui.spinner(false);
-},
+                                const card = document.createElement('div');
+                                card.className = 'card';
+                                card.style.cssText = 'margin-bottom:12px; padding:15px; cursor:pointer; border-left:4px solid ' + (score > 0 ? 'var(--primary)' : '#eee');
+                                card.innerHTML = `
+                                    <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+                                        <div style="flex:1;">
+                                            <div style="font-weight:800; color:var(--primary); font-size:1rem; margin-bottom:2px;">${game.title}</div>
+                                            <div style="font-size:0.7rem; color:#666;">${game.topic}</div>
+                                        </div>
+                                        <div style="text-align:right;">
+                                            <div style="font-weight:900; color:var(--primary); font-size:1rem;">${score}%</div>
+                                            <div style="font-size:0.6rem; color:#999; text-transform:uppercase;">Mastery</div>
+                                        </div>
+                                    </div>
+                                    ${breakdownHTML}
+                                    <div style="width:100%; height:4px; background:#f0f0f0; border-radius:10px; margin-top:12px; overflow:hidden;">
+                                        <div style="width:${score}%; height:100%; background:var(--primary); transition:0.3s;"></div>
+                                    </div>
+                                `;
+                                card.onclick = () => {
+                                    document.getElementById('modal-quests').classList.add('hidden');
+                                    app.logic.launchGame(game);
+                                };
+                                section.appendChild(card);
+                            });
+                            container.appendChild(section);
+                        });
+                    }
+                } catch (err) {
+                    console.error("Quest Log Error:", err);
+                    container.innerHTML = `<p style="color:red; text-align:center; padding:20px;">Error loading quests. Check console.</p>`;
+                }
+                ui.spinner(false);
+            },
             switchLibraryTab: (tab) => {
                 state.currentLibraryTab = tab;
                 document.getElementById('tab-btn-quests').classList.toggle('active', tab === 'quests');
@@ -891,9 +922,17 @@ card.innerHTML = `
                 } else {
                     // 1. If it's code, we CLEAR the src URL first
                     frame.src = ""; 
-                    // 2. Then inject the HTML code
-                    const best = (state.currentUser?.scores?.[g.gameId]?.score) || 0;
-                    frame.srcdoc = `<script>window.INITIAL_SCORE = ${best};<\/script>` + (g.htmlCode || "");
+                    
+                    // --- ENHANCED DATA FETCHING ---
+                    // This pulls the detailed scores and labels from your database
+                    const scoreObj = state.currentUser?.scores?.[g.gameId] || {};
+                    const best = scoreObj.score || 0;
+                    const bDown = JSON.stringify(scoreObj.breakdown || []);
+                    const lbls = JSON.stringify(scoreObj.labels || []);
+
+                    // We inject the values into the game frame
+                    // Note: We kept your specific <\/script> format to prevent errors
+                    frame.srcdoc = `<script>window.INITIAL_SCORE = ${best}; window.INITIAL_BREAKDOWN = ${bDown}; window.INITIAL_LABELS = ${lbls};<\/script>` + (g.htmlCode || "");
                 }
 
                 if(state.userType === 'student') {
@@ -950,6 +989,10 @@ card.innerHTML = `
                         lastActive: serverTimestamp()
                     };
 
+                    // NEW: Capture granular data if provided by the lesson
+                    if (data.breakdown) updatePayload[`scores.${gId}.breakdown`] = data.breakdown;
+                    if (data.labels) updatePayload[`scores.${gId}.labels`] = data.labels;
+
                     // SMART SYNC: Save to permanent gradebook if score improved or hit 100%
                     if (state.liveScore > oldScoreData.score || state.liveScore === 100) {
                         let ptsToAdd = 0;
@@ -960,13 +1003,12 @@ card.innerHTML = `
                             ui.toast("+10 Mastery Points! 💰");
                         }
 
-                        updatePayload[`scores.${gId}`] = {
-                            score: state.liveScore,
-                            total: data.total || 0,
-                            correct: data.correct || 0,
-                            date: new Date().toISOString(),
-                            lifetimePointsAwarded: awardedNow || (oldScoreData.lifetimePointsAwarded || false)
-                        };
+                        // Save the main score
+                        updatePayload[`scores.${gId}.score`] = state.liveScore;
+                        updatePayload[`scores.${gId}.total`] = data.total || 0;
+                        updatePayload[`scores.${gId}.correct`] = data.correct || 0;
+                        updatePayload[`scores.${gId}.date`] = new Date().toISOString();
+                        updatePayload[`scores.${gId}.lifetimePointsAwarded`] = awardedNow || (oldScoreData.lifetimePointsAwarded || false);
 
                         if (ptsToAdd > 0) {
                             updatePayload.pointsBalance = increment(ptsToAdd);
@@ -1143,7 +1185,11 @@ card.innerHTML = `
                 if(t === 'assign') app.dashboard.loadGroups(); // Refresh groups for the assign tab too
                 if(t === 'monitor') dashboard.loadMonitor();
                 if(t === 'class') dashboard.loadRoster();
-                if(t === 'assign') { dashboard.loadAssignableGames(); dashboard.loadStudentsForAssignment(); }
+                if(t === 'assign') { 
+    dashboard.loadAssignableGames(); 
+    dashboard.loadStudentsForAssignment(); 
+    dashboard.loadActiveAssignments(); // Add this line here
+}
                 if(t === 'grades') dashboard.loadGrades();
                 if(t === 'shop') dashboard.loadShopManager();
             },
@@ -1264,16 +1310,33 @@ card.innerHTML = `
                                 <button class="btn btn-primary btn-sm" onclick="app.dashboard.adjustPoints('${d.id}', 'pts-input-${d.id}')">Add</button>
                             </div>
                         </td>
-                        <td style="text-align:right;">
-                            <button class="btn btn-outline btn-sm" onclick="app.dashboard.manageStudentQuests('${d.id}', '${data.name}')">👁️ Quests</button>
-                            <button class="btn btn-danger btn-sm" onclick="app.dashboard.deleteStudent('${d.id}')">🗑️</button>
-                        </td>
+                        <td style="text-align:right; white-space:nowrap;">
+        <!-- NEW INDIVIDUAL LOCK BUTTON -->
+        <button class="btn ${data.gamesLocked ? 'btn-danger' : 'btn-outline'} btn-sm" 
+            onclick="app.dashboard.toggleUserLock('${d.id}', ${data.gamesLocked})" 
+            title="${data.gamesLocked ? 'Unlock Games' : 'Lock Games'}">
+            ${data.gamesLocked ? '🔒 Locked' : '🔓 Open'}
+        </button>
+
+        <button class="btn btn-outline btn-sm" onclick="app.dashboard.manageStudentQuests('${d.id}', '${data.name}')">👁️ Quests</button>
+        <button class="btn btn-danger btn-sm" onclick="app.dashboard.deleteStudent('${d.id}')">🗑️</button>
+    </td>
                     </tr>`;
                 }).join('');
             },
-            toggleUserLock: async (id, curr) => {
-                await updateDoc(doc(db, "students", id), { gamesLocked: !curr });
-                dashboard.loadRoster();
+           toggleUserLock: async (id, curr) => {
+                ui.spinner(true);
+                try {
+                    // This flips the lock status (if true, becomes false. If false, becomes true)
+                    await updateDoc(doc(db, "students", id), { 
+                        gamesLocked: !curr 
+                    });
+                    ui.toast(!curr ? "Student Locked 🔒" : "Student Unlocked 🔓");
+                    app.dashboard.loadRoster(); // Refresh the list to show the new icon
+                } catch (e) {
+                    console.error("Lock toggle failed:", e);
+                }
+                ui.spinner(false);
             },
             bulkToggleLock: async (lockStatus) => {
     if(!confirm(`Are you sure you want to ${lockStatus ? 'LOCK' : 'UNLOCK'} game access for the ENTIRE class?`)) return;
@@ -1325,6 +1388,83 @@ card.innerHTML = `
                 ui.spinner(true);
                 await Promise.all(sIds.map(id => updateDoc(doc(db, "students", id), { assignments: arrayUnion(gId) })));
                 ui.toast(`Successfully pushed lesson to ${sIds.length} students!`); ui.spinner(false);
+            },
+            loadActiveAssignments: async () => {
+                const summaryDiv = document.getElementById('active-assignments-summary');
+                summaryDiv.innerHTML = '<p style="text-align:center; padding:20px;">Scanning Student Quests...</p>';
+
+                try {
+                    // 1. Get all students for this teacher
+                    const sSnap = await getDocs(query(collection(db, "students"), where("teacherId", "==", state.currentUser.uid)));
+                    
+                    // 2. Find every unique gameId that is currently assigned
+                    const activeIds = new Set();
+                    sSnap.forEach(doc => {
+                        const assignments = doc.data().assignments || [];
+                        assignments.forEach(id => activeIds.add(id));
+                    });
+
+                    if (activeIds.size === 0) {
+                        summaryDiv.innerHTML = '<p style="text-align:center; padding:20px; color:#999;">No active assignments found.</p>';
+                        return;
+                    }
+
+                    // 3. Get the titles for these games
+                    const gameIds = Array.from(activeIds);
+                    let gamesData = [];
+                    // Handle Firebase 30-limit
+                    for (let i = 0; i < gameIds.length; i += 30) {
+                        const chunk = gameIds.slice(i, i + 30);
+                        const gSnap = await getDocs(query(collection(db, "games"), where("gameId", "in", chunk)));
+                        gSnap.forEach(d => gamesData.push(d.data()));
+                    }
+
+                    // 4. Render the list
+                    summaryDiv.innerHTML = gamesData.map(g => {
+                        // Count how many students have this specific lesson
+                        const count = sSnap.docs.filter(s => s.data().assignments?.includes(g.gameId)).length;
+                        
+                        return `
+                            <div style="display:flex; justify-content:space-between; align-items:center; padding:15px; background:#f8fafc; border-radius:12px; border:1px solid #e2e8f0;">
+                                <div>
+                                    <div style="font-weight:800; color:var(--ela);">${g.title}</div>
+                                    <div style="font-size:0.7rem; color:#666;">${g.subject} • ${g.topic} • Assigned to ${count} students</div>
+                                </div>
+                                <button class="btn btn-danger btn-sm" onclick="app.dashboard.globalUnassign('${g.gameId}', '${g.title.replace(/'/g, "\\'")}')">Remove for All 🗑️</button>
+                            </div>
+                        `;
+                    }).join('');
+
+                } catch (e) {
+                    console.error(e);
+                    summaryDiv.innerHTML = '<p>Error loading assignments.</p>';
+                }
+            },
+
+            globalUnassign: async (gameId, title) => {
+                if (!confirm(`Are you sure you want to remove "${title}" from EVERY student's Quest Log?`)) return;
+                
+                ui.spinner(true);
+                try {
+                    const sSnap = await getDocs(query(collection(db, "students"), where("teacherId", "==", state.currentUser.uid)));
+                    const batch = writeBatch(db);
+                    
+                    sSnap.forEach(sDoc => {
+                        if (sDoc.data().assignments?.includes(gameId)) {
+                            batch.update(doc(db, "students", sDoc.id), {
+                                assignments: arrayRemove(gameId)
+                            });
+                        }
+                    });
+
+                    await batch.commit();
+                    ui.toast(`Successfully removed "${title}" from the classroom.`);
+                    app.dashboard.loadActiveAssignments(); // Refresh the list
+                } catch (e) {
+                    console.error(e);
+                    alert("Failed to unassign. Check console.");
+                }
+                ui.spinner(false);
             },
            loadGrades: async () => {
                 ui.spinner(true);
@@ -1391,16 +1531,19 @@ card.innerHTML = `
                         const statusText = isStarted ? (bestScore === 100 ? 'Mastered' : 'In Progress') : 'Not Started';
 
                         body.innerHTML += `
-                            <tr>
-                                <td>
-                                    <div style="font-weight:bold;">${s.name}</div>
-                                    <div style="font-size:0.65rem; color:${statusColor}">● ${statusText}</div>
-                                </td>
-                                <td style="font-size:0.85rem;">${gameMeta.title}</td>
-                                <td style="font-weight:800; color:${statusColor}">${bestScore}%</td>
-                                <td style="font-size:0.85rem; color:var(--text-light);">${accuracy}</td>
-                                <td style="font-size:0.85rem; color:var(--text-light);">${lastDate}</td>
-                            </tr>`;
+                    <tr>
+                        <td>
+                            <div style="font-weight:bold;">${s.name}</div>
+                            <div style="font-size:0.65rem; color:${statusColor}">● ${statusText}</div>
+                        </td>
+                        <td style="font-size:0.85rem;">${gameMeta.title}</td>
+                        <td style="font-weight:800; color:${statusColor}; cursor:pointer; text-decoration:underline;" 
+                            onclick="app.dashboard.showMasteryDetails('${s.name}', '${gid}', ${JSON.stringify(s.scores).replace(/"/g, '&quot;')})">
+                            ${bestScore}% 🔍
+                        </td>
+                        <td style="font-size:0.85rem; color:var(--text-light);">${accuracy}</td>
+                        <td style="font-size:0.85rem; color:var(--text-light);">${lastDate}</td>
+                    </tr>`;
                     });
                 });
                 if (body.innerHTML === '') body.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:20px;">No matching records found.</td></tr>';
@@ -1604,6 +1747,34 @@ card.innerHTML = `
                 ui.toast("Group assignment complete!");
             },
             
+            showMasteryDetails: async (studentName, gameId, scores) => {
+                const modal = document.getElementById('modal-mastery');
+                const title = document.getElementById('mastery-modal-title');
+                const list = document.getElementById('mastery-details-list');
+                
+                const gameData = state.allGamesMap[gameId];
+                title.textContent = `${studentName}: ${gameData.title}`;
+                
+                // Get the data we saved earlier
+                const breakdown = scores[gameId]?.breakdown || [];
+                const labels = scores[gameId]?.labels || [];
+                
+                if (breakdown.length === 0) {
+                    list.innerHTML = "<p style='padding:20px; text-align:center; color:#666;'>No granular data recorded for this attempt.</p>";
+                } else {
+                    list.innerHTML = breakdown.map((score, index) => {
+                        const label = labels[index] || `Activity ${index + 1}`;
+                        return `
+                            <div style="display:flex; justify-content:space-between; padding:12px; border-bottom:1px solid #eee;">
+                                <span style="font-weight:600;">${label}</span>
+                                <span style="font-weight:800; color:${score >= 80 ? 'var(--secondary)' : 'var(--primary)'}">${score}%</span>
+                            </div>
+                        `;
+                    }).join('');
+                }
+                modal.classList.remove('hidden');
+            },
+            
             // --- ADD THIS INSIDE THE app.dashboard OBJECT ---
 
 bulkUnassign: async () => {
@@ -1710,7 +1881,17 @@ When creating each assessment item, you must adhere to the following three princ
    - DOK 2 (Infer/Conclude): Applying skills, making inferences, or identifying cause-and-effect.
    - DOK 3 (Analyze/Evaluate): Strategic thinking, analyzing complex themes, or justifying claims with evidence.
    
-   Implement a 'Just-in-Time' Learning System. Add a prominent "Hint" button to the game header. When clicked, trigger a modal popup that displays an Expert Curriculum Overview specific to the current active 'Day' (e.g., if on Day 1, show Day 1 concepts). MANDATORY ACCESSIBILITY: Inside the hint modal, include a "Read Aloud" button (speaker icon) that uses the browser's native, offline window.speechSynthesis API to narrate the lesson text for the student. Ensure the audio stops automatically when the modal is closed.`; 
+   Implement a 'Just-in-Time' Learning System. Add a prominent "Hint" button to the game header. When clicked, trigger a modal popup that displays an Expert Curriculum Overview specific to the current active 'Day' (e.g., if on Day 1, show Day 1 concepts). MANDATORY ACCESSIBILITY: Inside the hint modal, include a "Read Aloud" button (speaker icon) that uses the browser's native, offline window.speechSynthesis API to narrate the lesson text for the student. Ensure the audio stops automatically when the modal is closed.
+   
+   CRITICAL TECHNICAL DATA SYNC: 
+You must track a score array (e.g., [90, 80, 0, 0, 0]) for all activities. 
+Every time a score is updated, you MUST run:
+window.parent.postMessage({ 
+    type: 'TOOL_SCORE', 
+    score: totalAverage, 
+    breakdown: yourScoreArray, 
+    labels: ["Day 1: Intro", "Day 2: Practice", "Day 3: Quiz", "Day 4: Review", "Assessment"] 
+}, '*')`; 
  
         
         
