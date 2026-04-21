@@ -303,49 +303,68 @@
                 </div>
             </div>
 
-            <!-- DASH: ASSIGN -->
+<!-- DASH: ASSIGN -->
             <div id="dash-assign" class="dashboard-section hidden">
+                
+                <!-- TOP AREA: PUSHING ASSIGNMENTS (This is your original tool) -->
                 <div class="card">
-                    <h3>Push Assignments</h3>
+                    <h3>Push New Assignments</h3>
                     <div style="display:grid; grid-template-columns: 1fr 1fr 2fr; gap:15px; margin:15px 0; background:#f8fafc; padding:20px; border-radius:12px;">
                         <div>
-                            <label style="font-size:0.75rem; font-weight:800;">1. Subject</label>
+                            <label style="font-size:0.75rem; font-weight:800; color:var(--primary);">1. Subject</label>
                             <select id="assign-subject" class="input dynamic-subject-select" onchange="app.dashboard.loadAssignableGames()"></select>
                         </div>
-                        <div class="card" style="margin-top:20px; border-top: 5px solid var(--ela);">
-                    <h3>Current Active Assignments</h3>
-                    <p style="font-size:0.8rem; color:var(--text-light); margin-bottom:15px;">These are lessons currently in your students' Quest Logs. You can remove them globally here.</p>
-                    <div id="active-assignments-summary" style="display:grid; grid-template-columns: 1fr; gap:15px;">
-                        <!-- Global assignment list appears here -->
-                    </div>
-                </div>
                         <div>
-                            <label style="font-size:0.75rem; font-weight:800;">2. Grade Filter</label>
+                            <label style="font-size:0.75rem; font-weight:800; color:var(--primary);">2. Grade Filter</label>
                             <select id="assign-grade-filter" class="input" onchange="app.dashboard.loadAssignableGames()">
                                 <option value="">All Grades</option><option value="K">K</option><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option>
                             </select>
                         </div>
                         <div>
-                            <label style="font-size:0.75rem; font-weight:800;">3. Choose Lesson</label>
+                            <label style="font-size:0.75rem; font-weight:800; color:var(--primary);">3. Choose Lesson</label>
                             <select id="assign-game" class="input"><option value="">Select a lesson...</option></select>
                         </div>
                     </div>
-                    <div style="display:flex; justify-content:space-between; margin-bottom:10px;">
-                        <h4>Target Students</h4>
-                        <div><button class="btn btn-outline btn-sm" onclick="app.dashboard.toggleCheckboxes(true)">Check All</button><button class="btn btn-outline btn-sm" onclick="app.dashboard.toggleCheckboxes(false)">Uncheck All</button></div>
-                    </div>
+
+                    <!-- Fast Group Push (Optional feature we added earlier) -->
                     <div style="background: #f0f9ff; padding: 15px; border-radius: 12px; margin-bottom: 15px; border: 1px solid #bae6fd;">
-    <label style="font-weight:800; font-size:0.8rem;">🚀 Fast Push to Group:</label>
-    <div style="display:flex; gap:10px; margin-top:5px;">
-        <select id="assign-group-select" class="input" style="margin:0;"><option value="">Loading Groups...</option></select>
-        <button class="btn btn-primary" onclick="app.dashboard.assignToGroup()">Push to Group</button>
-    </div>
-</div>
-                    <div id="assign-student-list" style="max-height:250px; overflow-y:auto; border:1px solid #eee; border-radius:12px; padding:15px; margin-bottom:20px;"></div>
-                    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:15px; margin-top:20px;">
-    <button class="btn btn-primary" onclick="app.dashboard.assignToSelected()">🚀 Push to Selected</button>
-    <button class="btn btn-danger" onclick="app.dashboard.bulkUnassign()">🗑️ Remove from Selected</button>
-</div>
+                        <label style="font-weight:800; font-size:0.8rem;">🚀 Fast Push to Group:</label>
+                        <div style="display:flex; gap:10px; margin-top:5px;">
+                            <select id="assign-group-select" class="input" style="margin:0;"><option value="">Choose a Group...</option></select>
+                            <button class="btn btn-primary btn-sm" onclick="app.dashboard.assignToGroup()">Push to Group</button>
+                        </div>
+                    </div>
+                    
+                    <div style="display:flex; justify-content:space-between; margin-bottom:10px; align-items:center;">
+                        <h4 style="margin:0;">Target Individual Students</h4>
+                        <div>
+                            <button class="btn btn-outline btn-sm" onclick="app.dashboard.toggleCheckboxes(true)">Check All</button>
+                            <button class="btn btn-outline btn-sm" onclick="app.dashboard.toggleCheckboxes(false)">Uncheck All</button>
+                        </div>
+                    </div>
+
+                    <div id="assign-student-list" style="max-height:200px; overflow-y:auto; border:1px solid #eee; border-radius:12px; padding:15px; margin-bottom:20px; background:#fff;"></div>
+                    
+                    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:15px;">
+                        <button class="btn btn-primary" onclick="app.dashboard.assignToSelected()">🚀 Push to Selected</button>
+                        <button class="btn btn-danger" onclick="app.dashboard.bulkUnassign()">🗑️ Remove from Selected</button>
+                    </div>
+                </div>
+
+                <!-- BOTTOM AREA: THE FULL-WIDTH CLEAN LIST (The new feature) -->
+                <div class="card" style="margin-top:30px; border-top: 5px solid var(--ela);">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+                        <div>
+                            <h3 style="margin:0;">Active Classroom Quests</h3>
+                            <p style="font-size:0.85rem; color:var(--text-light); margin-top:4px;">These lessons are currently appearing in your students' ⚔️ Quest Logs.</p>
+                        </div>
+                        <button class="btn btn-outline btn-sm" onclick="app.dashboard.loadActiveAssignments()">🔄 Refresh List</button>
+                    </div>
+                    
+                    <!-- This grid makes the items spread out across the whole width -->
+                    <div id="active-assignments-summary" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap:15px;">
+                        <p style="color:#999; text-align:center; padding:20px;">Scanning for active assignments...</p>
+                    </div>
                 </div>
             </div>
 
@@ -1391,13 +1410,14 @@ card.innerHTML = `
             },
             loadActiveAssignments: async () => {
                 const summaryDiv = document.getElementById('active-assignments-summary');
-                summaryDiv.innerHTML = '<p style="text-align:center; padding:20px;">Scanning Student Quests...</p>';
+                if (!summaryDiv) return;
+                
+                // This makes the "Scanning" text sit in the center of the whole wide area
+                summaryDiv.innerHTML = '<p style="text-align:center; padding:20px; grid-column: 1 / -1;">Scanning Student Quests...</p>';
 
                 try {
-                    // 1. Get all students for this teacher
                     const sSnap = await getDocs(query(collection(db, "students"), where("teacherId", "==", state.currentUser.uid)));
                     
-                    // 2. Find every unique gameId that is currently assigned
                     const activeIds = new Set();
                     sSnap.forEach(doc => {
                         const assignments = doc.data().assignments || [];
@@ -1405,39 +1425,41 @@ card.innerHTML = `
                     });
 
                     if (activeIds.size === 0) {
-                        summaryDiv.innerHTML = '<p style="text-align:center; padding:20px; color:#999;">No active assignments found.</p>';
+                        summaryDiv.innerHTML = '<p style="text-align:center; padding:20px; color:#999; grid-column: 1 / -1;">No active assignments found.</p>';
                         return;
                     }
 
-                    // 3. Get the titles for these games
                     const gameIds = Array.from(activeIds);
                     let gamesData = [];
-                    // Handle Firebase 30-limit
                     for (let i = 0; i < gameIds.length; i += 30) {
                         const chunk = gameIds.slice(i, i + 30);
                         const gSnap = await getDocs(query(collection(db, "games"), where("gameId", "in", chunk)));
                         gSnap.forEach(d => gamesData.push(d.data()));
                     }
 
-                    // 4. Render the list
+                    // This part draws the nice "Cards" (Boxes)
                     summaryDiv.innerHTML = gamesData.map(g => {
-                        // Count how many students have this specific lesson
                         const count = sSnap.docs.filter(s => s.data().assignments?.includes(g.gameId)).length;
                         
                         return `
-                            <div style="display:flex; justify-content:space-between; align-items:center; padding:15px; background:#f8fafc; border-radius:12px; border:1px solid #e2e8f0;">
+                            <div style="padding:20px; background:#fff; border-radius:15px; border:1px solid #e2e8f0; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); display:flex; flex-direction:column; justify-content:space-between; transition: 0.3s;">
                                 <div>
-                                    <div style="font-weight:800; color:var(--ela);">${g.title}</div>
-                                    <div style="font-size:0.7rem; color:#666;">${g.subject} • ${g.topic} • Assigned to ${count} students</div>
+                                    <div style="font-weight:900; color:var(--ela); font-size:1.1rem; margin-bottom:5px;">${g.title}</div>
+                                    <div style="font-size:0.75rem; color:#64748b; margin-bottom:12px; font-weight:700;">${g.subject.toUpperCase()} • ${g.topic}</div>
+                                    <div style="font-size:0.8rem; background:#f1f5f9; padding:5px 12px; border-radius:20px; display:inline-block; font-weight:800; color:#475569;">
+                                        👤 ${count} Student${count === 1 ? '' : 's'}
+                                    </div>
                                 </div>
-                                <button class="btn btn-danger btn-sm" onclick="app.dashboard.globalUnassign('${g.gameId}', '${g.title.replace(/'/g, "\\'")}')">Remove for All 🗑️</button>
+                                <button class="btn btn-danger btn-sm" style="margin-top:20px; width:100%; font-weight:800;" onclick="app.dashboard.globalUnassign('${g.gameId}', '${g.title.replace(/'/g, "\\'")}')">
+                                    Remove for All 🗑️
+                                </button>
                             </div>
                         `;
                     }).join('');
 
                 } catch (e) {
-                    console.error(e);
-                    summaryDiv.innerHTML = '<p>Error loading assignments.</p>';
+                    console.error("Unassign List Error:", e);
+                    summaryDiv.innerHTML = '<p style="grid-column: 1 / -1; text-align:center;">Error loading assignments.</p>';
                 }
             },
 
