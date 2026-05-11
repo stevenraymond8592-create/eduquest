@@ -940,17 +940,37 @@ launchGame: async (g) => {
         const bDown = JSON.stringify(scoreObj.breakdown || []);
         const lbls = JSON.stringify(scoreObj.labels || []);
 
-        const syncScript = `<script>
+        // --- THE AGGRESSIVE SYNC SCRIPT ---
+        const syncScript = `
+        <script>
             window.INITIAL_SCORE = ${best}; 
             window.INITIAL_BREAKDOWN = ${bDown}; 
             window.INITIAL_LABELS = ${lbls};
-            try {
-                const storageKey = 'eduquest_progress_' + '${g.gameId}';
-                localStorage.removeItem(storageKey); // Universal Wipe for this specific lesson
-                window.INITIAL_BREAKDOWN.forEach((s, i) => {
-                    if(s === 0) { localStorage.removeItem(storageKey + '_day' + i); }
-                });
-            } catch(e) {}
+
+            // 1. FORCE RESET LOGIC
+            // This runs BEFORE the game code starts.
+            (function() {
+                try {
+                    // Check every item in the student's browser memory
+                    for (let i = 0; i < localStorage.length; i++) {
+                        const key = localStorage.key(i);
+                        
+                        // If the key looks like it belongs to this lesson
+                        if (key.includes('${g.gameId}') || key.includes('game_state') || key.includes('progress')) {
+                            
+                            // If the teacher has set the score to 0, we MUST kill the local memory
+                            window.INITIAL_BREAKDOWN.forEach((score, index) => {
+                                if (score === 0) {
+                                    // Delete the saved 'State' so the AI is forced to restart that day
+                                    localStorage.removeItem(key);
+                                    sessionStorage.clear();
+                                    console.log('Teacher Reset Detected: Wiping local memory for activity ' + index);
+                                }
+                            });
+                        }
+                    }
+                } catch(e) { console.error('Sync Error:', e); }
+            })();
         <\/script>`;
 
         frame.srcdoc = syncScript + (g.htmlCode || "");
