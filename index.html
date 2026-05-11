@@ -922,47 +922,64 @@ card.innerHTML = `
                     grid.appendChild(card);
                 });
             },
-            launchGame: async (g) => {
-                state.currentGame = g; 
-                state.liveScore = 0; 
-                state.lastSessionData = {total: 0, correct: 0};
+            // --- UPDATED LAUNCHER TO FORCE SYNC ---
+launchGame: async (g) => {
+    state.currentGame = g; 
+    state.liveScore = 0; 
+    state.lastSessionData = {total: 0, correct: 0};
+    document.getElementById('game-player-title').textContent = g.title;
+    
+    const frame = document.getElementById('game-frame');
+
+    if (g.externalUrl && g.externalUrl.trim() !== "") {
+        frame.removeAttribute('srcdoc'); 
+        frame.src = g.externalUrl; 
+    } else {
+        frame.src = ""; 
+        const scoreObj = state.currentUser?.scores?.[g.gameId] || {};
+        const best = scoreObj.score || 0;
+        const bDown = JSON.stringify(scoreObj.breakdown || []);
+        const lbls = JSON.stringify(scoreObj.labels || []);
+
+        // This script clears any local memory that contradicts your database
+        const syncScript = `
+            <script>
+                window.INITIAL_SCORE = ${best}; 
+                window.INITIAL_BREAKDOWN = ${bDown}; 
+                window.INITIAL_LABELS = ${lbls};
                 
-                // Set the header title
-                document.getElementById('game-player-title').textContent = g.title;
-                
-                const frame = document.getElementById('game-frame');
+                // FORCED SYNC LOGIC:
+                // If the game tries to load from LocalStorage, 
+                // this ensures the Teacher's reset takes priority.
+                try {
+                    const storageKey = 'eduquest_progress_' + '${g.gameId}';
+                    const localData = JSON.parse(localStorage.getItem(storageKey));
+                    if (localData) {
+                        window.INITIAL_BREAKDOWN.forEach((score, idx) => {
+                            if (score === 0) {
+                                // Wipe that specific day in local storage if teacher reset it
+                                if(localData.dayScores) localData.dayScores[idx] = 0;
+                                if(localData.breakdown) localData.breakdown[idx] = 0;
+                            }
+                        });
+                        localStorage.setItem(storageKey, JSON.stringify(localData));
+                    }
+                } catch(e) { console.log('Sync handled'); }
+            <\/script>
+        `;
 
-                // THE PROJECTOR LOGIC
-                if (g.externalUrl && g.externalUrl.trim() !== "") {
-                    // 1. If there's a link, we must CLEAR the srcdoc first
-                    frame.removeAttribute('srcdoc'); 
-                    // 2. Then set the src to the website URL
-                    frame.src = g.externalUrl; 
-                } else {
-                    // 1. If it's code, we CLEAR the src URL first
-                    frame.src = ""; 
-                    
-                    // --- ENHANCED DATA FETCHING ---
-                    // This pulls the detailed scores and labels from your database
-                    const scoreObj = state.currentUser?.scores?.[g.gameId] || {};
-                    const best = scoreObj.score || 0;
-                    const bDown = JSON.stringify(scoreObj.breakdown || []);
-                    const lbls = JSON.stringify(scoreObj.labels || []);
+        frame.srcdoc = syncScript + (g.htmlCode || "");
+    }
 
-                    // We inject the values into the game frame
-                    // Note: We kept your specific <\/script> format to prevent errors
-                    frame.srcdoc = `<script>window.INITIAL_SCORE = ${best}; window.INITIAL_BREAKDOWN = ${bDown}; window.INITIAL_LABELS = ${lbls};<\/script>` + (g.htmlCode || "");
-                }
-
-                if(state.userType === 'student') {
-                    await updateDoc(doc(db, "students", state.studentId), { 
-                        status: `🕹️ In Arcade: ${g.title}`, 
-                        currentSessionScore: 0, 
-                        lastActive: serverTimestamp() 
-                    });
-                }
-                router.go('game');
-            },
+    if(state.userType === 'student') {
+        await updateDoc(doc(db, "students", state.studentId), { 
+            status: `🕹️ In Arcade: ${g.title}`, 
+            currentSessionScore: 0, 
+            lastActive: serverTimestamp() 
+        });
+    }
+    router.go('game');
+},
 
             toggleFullscreen: () => {
                 const elem = document.getElementById("game-frame");
@@ -1774,35 +1791,77 @@ card.innerHTML = `
                 ui.toast("Group assignment complete!");
             },
             
-            showMasteryDetails: async (studentName, gameId, scores) => {
-                const modal = document.getElementById('modal-mastery');
-                const title = document.getElementById('mastery-modal-title');
-                const list = document.getElementById('mastery-details-list');
-                
-                const gameData = state.allGamesMap[gameId];
-                title.textContent = `${studentName}: ${gameData.title}`;
-                
-                // Get the data we saved earlier
-                const breakdown = scores[gameId]?.breakdown || [];
-                const labels = scores[gameId]?.labels || [];
-                
-                if (breakdown.length === 0) {
-                    list.innerHTML = "<p style='padding:20px; text-align:center; color:#666;'>No granular data recorded for this attempt.</p>";
-                } else {
-                    list.innerHTML = breakdown.map((score, index) => {
-                        const label = labels[index] || `Activity ${index + 1}`;
-                        return `
-                            <div style="display:flex; justify-content:space-between; padding:12px; border-bottom:1px solid #eee;">
-                                <span style="font-weight:600;">${label}</span>
-                                <span style="font-weight:800; color:${score >= 80 ? 'var(--secondary)' : 'var(--primary)'}">${score}%</span>
-                            </div>
-                        `;
-                    }).join('');
-                }
-                modal.classList.remove('hidden');
-            },
+            // --- UPDATED UI FOR SURGICAL RESET ---
+showMasteryDetails: async (studentName, gameId, scores, studentId) => {
+    const modal = document.getElementById('modal-mastery');
+    const title = document.getElementById('mastery-modal-title');
+    const list = document.getElementById('mastery-details-list');
+    
+    const gameData = state.allGamesMap[gameId];
+    title.textContent = `${studentName}: ${gameData.title}`;
+    
+    const breakdown = scores[gameId]?.breakdown || [];
+    const labels = scores[gameId]?.labels || [];
+    
+    if (breakdown.length === 0) {
+        list.innerHTML = "<p style='padding:20px; text-align:center; color:#666;'>No granular data recorded.</p>";
+    } else {
+        list.innerHTML = breakdown.map((score, index) => {
+            const label = labels[index] || `Activity ${index + 1}`;
+            return `
+                <div style="display:flex; justify-content:space-between; align-items:center; padding:12px; border-bottom:1px solid #eee;">
+                    <div>
+                        <span style="font-weight:600; display:block;">${label}</span>
+                        <span style="font-weight:800; color:${score >= 80 ? 'var(--secondary)' : 'var(--primary)'}">${score}%</span>
+                    </div>
+                    <button class="btn btn-outline btn-sm" style="color:var(--danger); border-color:var(--danger); padding:4px 8px;" 
+                        onclick="app.dashboard.resetSpecificTab('${studentId}', '${gameId}', ${index}, '${studentName}')">
+                        Reset ↺
+                    </button>
+                </div>
+            `;
+        }).join('');
+    }
+    modal.classList.remove('hidden');
+},
             
             // --- ADD THIS INSIDE THE app.dashboard OBJECT ---
+            
+            // --- DATABASE LOGIC FOR SURGICAL RESET ---
+resetSpecificTab: async (studentId, gameId, index, studentName) => {
+    if(!confirm(`Reset progress for Activity ${index + 1} for ${studentName}?`)) return;
+
+    ui.spinner(true);
+    try {
+        const studentRef = doc(db, "students", studentId);
+        const sSnap = await getDocs(query(collection(db, "students"), where("__name__", "==", studentId)));
+        const studentData = sSnap.docs[0].data();
+        
+        let currentScores = studentData.scores || {};
+        if (currentScores[gameId] && currentScores[gameId].breakdown) {
+            // 1. Reset the specific index
+            currentScores[gameId].breakdown[index] = 0;
+            
+            // 2. Recalculate the overall average score
+            const b = currentScores[gameId].breakdown;
+            const newAverage = Math.round(b.reduce((a, b) => a + b, 0) / b.length);
+            currentScores[gameId].score = newAverage;
+
+            // 3. Push back to Firebase
+            await updateDoc(studentRef, { scores: currentScores });
+            
+            ui.toast("Activity Reset! Student will see 0% next time they join.");
+            
+            // Close the modal and refresh the gradebook
+            document.getElementById('modal-mastery').classList.add('hidden');
+            app.dashboard.renderGrades();
+        }
+    } catch (e) {
+        console.error("Reset failed:", e);
+        alert("Reset failed. Check console.");
+    }
+    ui.spinner(false);
+},
 
 bulkUnassign: async () => {
     const gameId = document.getElementById('assign-game').value;
